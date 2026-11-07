@@ -2,8 +2,8 @@
 # Builds the self-contained libtsdl.so, checks it and installs it with BUILDINFO.txt into
 # Engines/NativeRunner/runtimes/linux-x64/native.
 #
-# Committed builds run inside ubuntu:22.04 (glibc 2.35 is the support floor):
-#   podman run --rm -v "$PWD":/src:Z ubuntu:22.04 /src/Native/build-linux.sh
+# Release builds run inside ubuntu:24.04, the same base as the bundled libmpv (glibc 2.39 is the support floor):
+#   podman run --rm -v "$PWD":/src:Z ubuntu:24.04 bash /src/Native/build-linux.sh
 # Dev build on the host (the glibc floor is then the host's, so relax the check):
 #   VCPKG_ROOT=~/vcpkg TSDL_MAX_GLIBC=99 Native/build-linux.sh
 set -euo pipefail
@@ -11,7 +11,7 @@ set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(dirname "$here")
 out="$repo/Engines/NativeRunner/runtimes/linux-x64/native"
-max_glibc=${TSDL_MAX_GLIBC:-2.35}
+max_glibc=${TSDL_MAX_GLIBC:-2.39}
 preset=linux-x64-release
 
 . /etc/os-release
@@ -35,7 +35,8 @@ if [ ! -x "$VCPKG_ROOT/vcpkg" ]; then
 fi
 export VCPKG_ROOT
 
-build_dir="$here/build/$preset-$base_image"
+# no ':' in the path: vcpkg's autotools ports (openssl) reject the host path-list separator
+build_dir="$here/build/$preset-$ID-$VERSION_ID"
 cd "$here"
 cmake --preset "$preset" -B "$build_dir"
 cmake --build "$build_dir"
@@ -58,7 +59,7 @@ foreign=$(nm -D --defined-only "$lib" | awk '{print $3}' | grep -v '^tsdl_' || t
 
 glibc=$(objdump -T "$lib" | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -uV | tail -1)
 [ "$(printf '%s\n%s\n' "$glibc" "$max_glibc" | sort -V | tail -1)" = "$max_glibc" ] \
-  || fail "needs glibc $glibc, newer than the $max_glibc floor (build inside ubuntu:22.04)"
+  || fail "needs glibc $glibc, newer than the $max_glibc floor (build inside ubuntu:24.04)"
 
 commit=$(git_ -C "$repo" rev-parse HEAD)
 git_ -C "$repo" diff --quiet HEAD -- Native || commit="$commit+dirty"

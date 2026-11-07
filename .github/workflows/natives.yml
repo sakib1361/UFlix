@@ -32,10 +32,10 @@ jobs:
           path: Native/build/vcpkg-cache
           key: vcpkg-linux-${{ hashFiles('Native/vcpkg.json', 'Native/triplets/**') }}
 
-      - name: Build tsdl (ubuntu:22.04 for the glibc 2.35 floor)
+      - name: Build tsdl (ubuntu:24.04, the same glibc 2.39 floor as libmpv)
         run: |
           mkdir -p Native/build/vcpkg-cache
-          docker run --rm -v "$PWD":/src ubuntu:22.04 bash /src/Native/build-linux.sh
+          docker run --rm -v "$PWD":/src ubuntu:24.04 bash /src/Native/build-linux.sh
           sudo chown -R "$(id -u):$(id -g)" Native/build Engines/NativeRunner/runtimes
 
       - name: Pack

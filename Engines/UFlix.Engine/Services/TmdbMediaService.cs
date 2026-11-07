@@ -1,5 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 using TMDbLib.Client;
+using TMDbLib.Objects.Find;
 using TMDbLib.Objects.General;
 using TMDbLib.Objects.Movies;
 using TMDbLib.Objects.Search;
@@ -203,6 +204,12 @@ namespace UFlix.Engine.Services
 
         public async Task<TvShow> GetShowInfo(MediaItem search, bool force = false)
         {
+            if (search.TmdbId == 0 && !string.IsNullOrEmpty(search.Id))
+            {
+                var tmdbId = await FindShowByImdbId(search.Id);
+                if (tmdbId == 0) return null;
+                search.TmdbId = tmdbId;
+            }
             var key = BuildKey(GetName(), search.TmdbId);
             var data = DBUtilities.Instance.GetCache<TvShow>(key);
             if (data == null || force)
@@ -220,6 +227,22 @@ namespace UFlix.Engine.Services
                 if (special != null) data.Seasons.Remove(special);
             }
             return data;
+        }
+
+        private async Task<int> FindShowByImdbId(string imdbId)
+        {
+            var key = BuildKey(GetName(), imdbId);
+            var cached = DBUtilities.Instance.GetCache<MediaItem[]>(key);
+            if (cached.Length > 0) return cached[0].TmdbId;
+            try
+            {
+                var res = await client.FindAsync(FindExternalSource.Imdb, imdbId);
+                var data = ConvertMedia(res?.TvResults ?? []);
+                if (data.Length == 0) return 0;
+                DBUtilities.Instance.AddUpdateCache(key, data);
+                return data[0].TmdbId;
+            }
+            catch { return 0; }
         }
 
         public async Task<TvSeason> GetSeasonInfo(TvShow show, int season, bool force = false)

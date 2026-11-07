@@ -146,6 +146,11 @@ namespace UFlix.Cross.Pages
             else if (media.ContentType == MediaContentType.Shows)
             {
                 var show = await _service.GetShowInfo(media);
+                if (show == null)
+                {
+                    ProgressLoadingRing.IsActive = false;
+                    return;
+                }
                 var dlg = new LibraryShowDialog(show)
                 {
                     XamlRoot = this.XamlRoot
