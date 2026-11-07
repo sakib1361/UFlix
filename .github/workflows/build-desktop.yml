@@ -29,7 +29,7 @@ jobs:
   linux:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-uflix
         with:
@@ -47,7 +47,7 @@ jobs:
           export VERSION="${RELEASE_VERSION:-$(tr -d '[:space:]' < VERSION)-ci.$GITHUB_RUN_NUMBER}"
           UFlix.Cross/Platforms/Desktop/package-linux.sh
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: uflix-linux-x64
           path: out/linux/*
@@ -56,7 +56,7 @@ jobs:
   windows:
     runs-on: windows-2025
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - uses: ./.github/actions/setup-uflix
         with:
@@ -74,7 +74,7 @@ jobs:
           $v = if ($env:RELEASE_VERSION) { $env:RELEASE_VERSION } else { "$((Get-Content VERSION -Raw).Trim())-ci.$env:GITHUB_RUN_NUMBER" }
           UFlix.Cross\Platforms\Windows\package-windows.ps1 -Version $v
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: uflix-win-x64
           path: out/windows/*

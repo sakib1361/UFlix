@@ -22,7 +22,7 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       new: ${{ steps.v.outputs.new }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # the keys are compiled into the app and a published version is never rebuilt, so refuse to release without them
       - name: Check API key secrets
@@ -60,7 +60,7 @@ jobs:
     needs: [version, build]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true

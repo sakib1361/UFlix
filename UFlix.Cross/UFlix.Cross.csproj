@@ -37,6 +37,9 @@
 		<ApplicationIcon>Assets\uflix.ico</ApplicationIcon>
 		<!-- Platforms/Windows/Program.cs: Velopack's hook must run before WinUI starts -->
 		<DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+		<!-- Uno always names a default publish profile (win-$(Platform).pubxml); there is none, package-windows.ps1 passes every
+		     publish setting itself, so the "profile not found" warning (NETSDK1198) is only noise -->
+		<MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);NETSDK1198</MSBuildWarningsAsMessages>
 	</PropertyGroup>
 
 	<ItemGroup>
