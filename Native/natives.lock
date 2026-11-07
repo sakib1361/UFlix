@@ -1,0 +1,6 @@
+# The native set the app bundles (libmpv + tsdl for each OS), mirrored as the assets of a prerelease in this repo.
+# Written by .github/workflows/natives.yml; `Native/natives.sh fetch` downloads and checks it. Sourced by bash.
+NATIVES_REPO=sakib1361/UFlix
+NATIVES_TAG=
+SHA256_linux_x64=
+SHA256_win_x64=

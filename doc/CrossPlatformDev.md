@@ -20,7 +20,7 @@ UFlix.Cross/             Uno single project, two heads:
                            net10.0-desktop           → Skia head; X11 host on Linux
 Native/
   TorrentSharp/          C++ tsdl (libtorrent wrapper), CMake + vcpkg; build-linux.sh / build-windows.ps1
-  mpv/                   fetch-windows.sh (pinned LGPL libmpv-2.dll) / build-linux.sh (GPL libmpv.so.2)
+  mpv/                   fetch-windows.sh (newest LGPL libmpv-2.dll) / build-linux.sh (GPL libmpv.so.2)
 ```
 
 Layering: `UFlix.Cross` → `MpvSharp`, `NativeRunner`, `UFlix.Engine`. `MpvSharp` and `NativeRunner` know nothing about each other or about any UI.
@@ -89,7 +89,7 @@ PlayerPage (XAML) ──► MediaContainer ──► MpvSharp.MpvPlayer ──�
 | `Player/PlayerPage.xaml(.cs)` | Video + control bar + side panel (YouTube details: title, channel, views/date/likes, description; up next / playlist with autoplay switch) + info panel + torrent buffering panel; speed menu (all media), YouTube captions menu, theater mode (hides the side panel); keyboard accelerators. |
 | `Player/MediaContainer*.cs` | Playback per `MediaType` on `MpvPlayer` (below). |
 | `Player/MediaInfoPanel.xaml` | Stats panel bound to `PlayerInformation`. |
-| `runtimes/win-x64/native/` | `libmpv-2.dll` + `BUILDINFO.txt` (`Native/mpv/fetch-windows.sh`). `runtimes/linux-x64/native/`: `libmpv.so.2` + bundled deps + `BUILDINFO.txt` (`Native/mpv/build-linux.sh`). Not committed: CI fetches/builds them (`.github/actions/native-deps`); run the scripts once after a fresh clone. Only the target RID's folder is copied (`NativeRid` in `UFlix.Cross.csproj`/`NativeRunner.csproj`), so a Linux package carries no Windows DLLs and vice versa. |
+| `runtimes/win-x64/native/` | `libmpv-2.dll` + `BUILDINFO.txt` (`Native/mpv/fetch-windows.sh`). `runtimes/linux-x64/native/`: `libmpv.so.2` + bundled deps + `BUILDINFO.txt` (`Native/mpv/build-linux.sh`). Not committed: `Native/natives.sh fetch` downloads the set pinned in `Native/natives.lock` (see §6). Only the target RID's folder is copied (`NativeRid` in `UFlix.Cross.csproj`/`NativeRunner.csproj`), so a Linux package carries no Windows DLLs and vice versa. |
 
 **`MediaContainer` by source:**
 
@@ -232,7 +232,7 @@ dotnet run --project Engines/NativeRunner.Smoke -- [download folder]
 
 - `UFlix.Engine` portability patch approved (`AppPaths`, OS-aware ffmpeg). Windows behaviour unchanged.
 - Packages approved: `Uno.Sdk` (pinned 6.7.30; Skia/X11 via the SDK), `YoutubeDLSharp`, `Velopack` (MIT; installer + future updates, `vpk` CLI pinned in `dotnet-tools.json`). CommunityToolkit was replaced by a local shim. mpv and libtorrent are P/Invoke only.
-- **mpv is always bundled**, never the system copy in a release: binaries under `runtimes/<rid>/native/` with a `BUILDINFO.txt`, as for `tsdl`. No native binary is committed: CI downloads (Windows libmpv) or builds (Linux libmpv, tsdl) them, cached per source hash.
+- **mpv is always bundled**, never the system copy in a release: binaries under `runtimes/<rid>/native/` with a `BUILDINFO.txt`, as for `tsdl`. No native binary is committed. The native libraries (libmpv, tsdl) are not in git. They are mirrored as the assets of a `natives-N` prerelease in this repo, pinned by `Native/natives.lock` (tag + sha256 per OS). `Native/natives.sh fetch` downloads and checks the pinned set (CI does this on every build); the **Natives** workflow (`.github/workflows/natives.yml`, run by hand) builds Linux libmpv and tsdl from source, fetches the newest Windows libmpv, publishes a new set and commits the new pin. Why a mirror: committing them grows every clone by ~157 MB per update (libmpv-2.dll alone is 100.4 MB, at GitHub's 100 MiB file limit), zhongfly/mpv-winbuild deletes builds after about a month (a sha256 pin to it 404'd within six weeks), and building everything in each CI run took 30–60 min.
 - **Licensing: LGPL unless a GPL-only feature is used.**
   - **Windows:** LGPL libmpv (zhongfly `mpv-dev-lgpl-x86_64`), dynamically linked, replaceable, shipped with the licence and a source link.
   - **Linux:** X11 video output (`--wid`, `x11vk`) is GPL-only in mpv (`-Dgpl=true`), so a distributed Linux build is a combined work under **GPLv2+**. The repository is therefore licensed **GPL-3.0-or-later** (`LICENSE`); every dependency and bundled binary must stay GPLv3-compatible.
@@ -247,7 +247,7 @@ dotnet run --project Engines/NativeRunner.Smoke -- [download folder]
 | Phase | State |
 |---|---|
 | 0 Scaffold | **Done.** `UFlix.Cross/`, two TFMs (WinAppSDK TFM only on Windows hosts), in `UFlix.sln`. The desktop head builds with 0 errors/0 warnings on Linux. CI: `.github/workflows/build-desktop.yml` (composite setup in `.github/actions/setup-uflix`) runs both package scripts on push/PR/`v*` tags and uploads `out/linux` + `out/windows` as artifacts; API keys come from the `UFLIX_*` repo secrets. |
-| 1a Bundled libmpv | **Windows done:** `Native/mpv/fetch-windows.sh` → `libmpv-2.dll` v0.41.0-1087 LGPL (95.8 MiB, sha256-pinned). **Linux done:** upstream ships no Linux libmpv binaries, so `Native/mpv/build-linux.sh` builds mpv v0.41.0 (GPL, X11/Vulkan/EGL/VA-API, Wayland off) + a playback-only shared FFmpeg n7.1.2 inside an Ubuntu 24.04 rootfs run rootless with `bwrap` (no root/podman; `chown` is stubbed because only uid 0 is mapped). Target is **Ubuntu 24.04+** (22.04 is EOL). It walks libmpv's `DT_NEEDED` and bundles every library whose package is not on both the stock 24.04 and 26.04 desktop manifests (FFmpeg, libplacebo, libass, dav1d, libva, libunibreak, ...), all with `RUNPATH=$ORIGIN`. |
+| 1a Bundled libmpv | **Windows done:** `Native/mpv/fetch-windows.sh` → `libmpv-2.dll` LGPL (newest zhongfly build when the Natives workflow runs; v0.42.0 on 2026-11-07), mirrored in the natives release. **Linux done:** upstream ships no Linux libmpv binaries, so `Native/mpv/build-linux.sh` builds mpv v0.41.0 (GPL, X11/Vulkan/EGL/VA-API, Wayland off) + a playback-only shared FFmpeg n7.1.2 inside an Ubuntu 24.04 rootfs run rootless with `bwrap` (no root/podman; `chown` is stubbed because only uid 0 is mapped). Target is **Ubuntu 24.04+** (22.04 is EOL). It walks libmpv's `DT_NEEDED` and bundles every library whose package is not on both the stock 24.04 and 26.04 desktop manifests (FFmpeg, libplacebo, libass, dav1d, libva, libunibreak, ...), all with `RUNPATH=$ORIGIN`. |
 | 1 MpvSharp | **Done.** `MpvSharp.Smoke` passes all 15 checks on Linux (libmpv 0.41, client API 2.5). **Open:** the Windows run; porting the full mpvstream S1–S9 scenario table. |
 | 2 VideoSurface + player page | **Linux: plays** (1280×720 H.264, `hwdec=vulkan`, bar below the video). **Open:** the Windows head at runtime; HEVC10 and drop/CPU/RAM numbers against §1; clean-exit check with a person driving it. Linux mouse over the video (move, double-click) confirmed by hand. |
 | 3 Port the UI | **Done (compile + shell renders on Linux).** **Open:** walk every page and dialog on both heads; Home rows load (fixed: `SourceProvider` type + empty `{x:Bind}`); the file picker on Linux (GTK/portal). |

@@ -456,8 +456,8 @@ $RECYCLE.BIN/
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# Native libraries are not committed: CI fetches/builds them (.github/actions/native-deps);
-# locally run Native/mpv/fetch-windows.sh or build-linux.sh (libmpv) and Native/build-*.sh|ps1 (tsdl)
+# Native libraries are not committed: they are the natives-N prerelease pinned in Native/natives.lock;
+# get them with Native/natives.sh fetch (CI does too), make a new set with the Natives workflow
 /Engines/NativeRunner/runtimes/
 /UFlix.Cross/runtimes/
 

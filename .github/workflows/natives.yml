@@ -1,0 +1,123 @@
+name: Natives
+
+# Run by hand (Actions → Natives → Run workflow) to make a new native set: builds Linux libmpv and tsdl for both OSes from
+# source, fetches the newest Windows libmpv, publishes them as the prerelease natives-<run number> and pins it in
+# Native/natives.lock (committed back). App builds only download the pinned set, so run this when mpv, FFmpeg or Native/ change.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: natives
+  cancel-in-progress: false
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build libmpv (Ubuntu 24.04 rootfs, bubblewrap)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q bubblewrap
+          # Ubuntu 24.04 blocks unprivileged user namespaces, which bwrap needs
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          WORK="$RUNNER_TEMP/mpv-linux" bash Native/mpv/build-linux.sh
+
+      - uses: actions/cache@v4
+        with:
+          path: Native/build/vcpkg-cache
+          key: vcpkg-linux-${{ hashFiles('Native/vcpkg.json', 'Native/triplets/**') }}
+
+      - name: Build tsdl (ubuntu:22.04 for the glibc 2.35 floor)
+        run: |
+          mkdir -p Native/build/vcpkg-cache
+          docker run --rm -v "$PWD":/src ubuntu:22.04 bash /src/Native/build-linux.sh
+          sudo chown -R "$(id -u):$(id -g)" Native/build Engines/NativeRunner/runtimes
+
+      - name: Pack
+        run: bash Native/natives.sh pack linux-x64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: natives-linux-x64
+          path: out/natives/natives-linux-x64.tar.gz
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Fetch libmpv (newest zhongfly/mpv-winbuild LGPL build)
+        shell: bash
+        run: bash Native/mpv/fetch-windows.sh
+
+      - uses: actions/cache@v4
+        with:
+          path: Native/build/vcpkg-cache
+          key: vcpkg-windows-${{ hashFiles('Native/vcpkg.json', 'Native/triplets/**') }}
+
+      - name: Build tsdl
+        shell: pwsh
+        run: |
+          $vcpkg = Join-Path $env:RUNNER_TEMP 'vcpkg'
+          git clone -q https://github.com/microsoft/vcpkg $vcpkg   # full clone: vcpkg.json pins a builtin-baseline commit
+          & "$vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+          if ($LASTEXITCODE) { throw 'vcpkg bootstrap failed' }
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          & "$vs\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+          $env:VCPKG_ROOT = $vcpkg
+          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:GITHUB_WORKSPACE 'Native\build\vcpkg-cache'
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          & (Join-Path $env:GITHUB_WORKSPACE 'Native\build-windows.ps1')
+
+      - name: Pack
+        shell: bash
+        run: bash Native/natives.sh pack win-x64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: natives-win-x64
+          path: out/natives/natives-win-x64.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish the prerelease and pin it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: natives-${{ github.run_number }}
+        run: |
+          {
+            echo "Native libraries bundled with UFlix (libmpv + tsdl). Not an app release: builds download this set through Native/natives.lock."
+            for f in dist/natives-*.tar.gz; do
+              echo; echo "## $(basename "$f")"; echo; echo "sha256: \`$(sha256sum "$f" | cut -d' ' -f1)\`"
+              for b in $(tar -tzf "$f" | grep 'BUILDINFO.txt$'); do echo; echo '```'; tar -xzOf "$f" "$b"; echo '```'; done
+            done
+          } > notes.md
+          gh release create "$TAG" dist/natives-*.tar.gz --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --prerelease --title "Native libraries ($TAG)" --notes-file notes.md
+
+          sed -i -e "s|^NATIVES_REPO=.*|NATIVES_REPO=$GITHUB_REPOSITORY|" -e "s|^NATIVES_TAG=.*|NATIVES_TAG=$TAG|" \
+                 -e "s|^SHA256_linux_x64=.*|SHA256_linux_x64=$(sha256sum dist/natives-linux-x64.tar.gz | cut -d' ' -f1)|" \
+                 -e "s|^SHA256_win_x64=.*|SHA256_win_x64=$(sha256sum dist/natives-win-x64.tar.gz | cut -d' ' -f1)|" \
+                 Native/natives.lock
+          cat Native/natives.lock
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Pin native libraries $TAG"
+          git push

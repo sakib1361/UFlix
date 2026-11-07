@@ -23,6 +23,17 @@ jobs:
       new: ${{ steps.v.outputs.new }}
     steps:
       - uses: actions/checkout@v5
+
+      # the keys are compiled into the app and a published version is never rebuilt, so refuse to release without them
+      - name: Check API key secrets
+        env:
+          UFLIX_TMDB_API_KEY: ${{ secrets.UFLIX_TMDB_API_KEY }}
+          UFLIX_OPENSUBTITLES_API_KEY: ${{ secrets.UFLIX_OPENSUBTITLES_API_KEY }}
+          UFLIX_OPENSUBTITLES_USERNAME: ${{ secrets.UFLIX_OPENSUBTITLES_USERNAME }}
+          UFLIX_OPENSUBTITLES_PASSWORD: ${{ secrets.UFLIX_OPENSUBTITLES_PASSWORD }}
+          UFLIX_SUBDL_API_KEY: ${{ secrets.UFLIX_SUBDL_API_KEY }}
+        run: bash .github/scripts/check-secrets.sh
+
       - id: v
         env:
           GH_TOKEN: ${{ github.token }}

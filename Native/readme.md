@@ -11,6 +11,6 @@ C API over libtorrent, consumed by `Engines/NativeRunner`. Builds one self-conta
 | Distro / Flatpak | `cmake --preset linux-x64-system` or `flatpak/tsdl.yml` | no vcpkg, uses an installed libtorrent |
 
 Presets read the toolchain from `$VCPKG_ROOT`; overlay triplets live in `triplets/`.
-The binaries are not committed (git-ignored): CI builds them in `.github/actions/native-deps`, cached on the hash of `Native/`. Build them locally before running the app from a fresh clone.
+The native libraries (libmpv, tsdl) are not in git. They are mirrored as the assets of a `natives-N` prerelease in this repo, pinned by `Native/natives.lock` (tag + sha256 per OS). `Native/natives.sh fetch` downloads and checks the pinned set (CI does this on every build); the **Natives** workflow (`.github/workflows/natives.yml`, run by hand) builds Linux libmpv and tsdl from source, fetches the newest Windows libmpv, publishes a new set and commits the new pin. After changing `Native/`, run the Natives workflow (or build locally, `Native/natives.sh pack <rid>`, and upload the tarball to a new `natives-N` prerelease by hand, updating `natives.lock`).
 
 Smoke test (Linux and Windows): `dotnet run --project Engines/NativeRunner.Smoke`.

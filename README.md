@@ -54,12 +54,20 @@ The package includes the .NET runtime and its own libmpv, so it doesn't depend o
 
 ### Native components
 
-Prebuilt native libraries are committed under `runtimes/<rid>/native/`, each with a `BUILDINFO.txt` that records its exact source version and build options. You only need to rebuild them when you change them:
+The native libraries (libmpv, tsdl) are not in git. They are mirrored as the assets of a `natives-N` prerelease in this repo, pinned by `Native/natives.lock` (tag + sha256 per OS). `Native/natives.sh fetch` downloads and checks the pinned set (CI does this on every build); the **Natives** workflow (`.github/workflows/natives.yml`, run by hand) builds Linux libmpv and tsdl from source, fetches the newest Windows libmpv, publishes a new set and commits the new pin. Each set carries a `BUILDINFO.txt` per library with its exact source version and build options.
+
+After cloning, get them with:
+
+```bash
+Native/natives.sh fetch        # this OS; Git Bash on Windows
+```
+
+To rebuild one yourself (then `Native/natives.sh pack` bundles your copies into a new set):
 
 | Component | Script |
 |---|---|
 | libmpv (Linux) | `Native/mpv/build-linux.sh` builds mpv and a playback-only FFmpeg from source |
-| libmpv (Windows) | `Native/mpv/fetch-windows.sh` downloads a pinned LGPL build |
+| libmpv (Windows) | `Native/mpv/fetch-windows.sh` downloads the newest LGPL build from zhongfly/mpv-winbuild (it keeps only about a month of builds, hence the mirror) |
 | tsdl (libtorrent wrapper) | `Native/build-linux.sh`, `Native/build-windows.ps1` (see [Native/readme.md](Native/readme.md)) |
 
 ### Tests
