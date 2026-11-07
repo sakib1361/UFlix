@@ -1,0 +1,81 @@
+name: Build desktop
+
+on:
+  push:
+    branches: [master, main]
+    paths-ignore: ['doc/**', '**.md', 'VERSION']   # a VERSION change runs release.yml, which builds too
+  pull_request:
+    paths-ignore: ['doc/**', '**.md']
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        description: Exact release version (x.y.z); empty = <VERSION file>-ci.<run number>
+        type: string
+        default: ''
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  RELEASE_VERSION: ${{ inputs.version }}
+  # baked into the app as its update feed (read by UFlix.Cross.csproj as an MSBuild property)
+  UFlixUpdateRepo: ${{ github.server_url }}/${{ github.repository }}
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/setup-uflix
+        with:
+          tmdb-api-key: ${{ secrets.UFLIX_TMDB_API_KEY }}
+          opensubtitles-api-key: ${{ secrets.UFLIX_OPENSUBTITLES_API_KEY }}
+          opensubtitles-username: ${{ secrets.UFLIX_OPENSUBTITLES_USERNAME }}
+          opensubtitles-password: ${{ secrets.UFLIX_OPENSUBTITLES_PASSWORD }}
+          subdl-api-key: ${{ secrets.UFLIX_SUBDL_API_KEY }}
+
+      - uses: ./.github/actions/native-deps
+
+      - name: Package (AppImage)
+        shell: bash
+        run: |
+          export VERSION="${RELEASE_VERSION:-$(tr -d '[:space:]' < VERSION)-ci.$GITHUB_RUN_NUMBER}"
+          UFlix.Cross/Platforms/Desktop/package-linux.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uflix-linux-x64
+          path: out/linux/*
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/setup-uflix
+        with:
+          tmdb-api-key: ${{ secrets.UFLIX_TMDB_API_KEY }}
+          opensubtitles-api-key: ${{ secrets.UFLIX_OPENSUBTITLES_API_KEY }}
+          opensubtitles-username: ${{ secrets.UFLIX_OPENSUBTITLES_USERNAME }}
+          opensubtitles-password: ${{ secrets.UFLIX_OPENSUBTITLES_PASSWORD }}
+          subdl-api-key: ${{ secrets.UFLIX_SUBDL_API_KEY }}
+
+      - uses: ./.github/actions/native-deps
+
+      - name: Package (Setup.exe)
+        shell: pwsh
+        run: |
+          $v = if ($env:RELEASE_VERSION) { $env:RELEASE_VERSION } else { "$((Get-Content VERSION -Raw).Trim())-ci.$env:GITHUB_RUN_NUMBER" }
+          UFlix.Cross\Platforms\Windows\package-windows.ps1 -Version $v
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uflix-win-x64
+          path: out/windows/*
+          if-no-files-found: error

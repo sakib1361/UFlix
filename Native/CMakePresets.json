@@ -1,0 +1,47 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets",
+        "TSDL_USE_VCPKG": "ON"
+      }
+    },
+    {
+      "name": "linux-x64-release",
+      "inherits": "base",
+      "cacheVariables": { "VCPKG_TARGET_TRIPLET": "x64-linux-tsdl" },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
+    },
+    {
+      "name": "windows-x64-release",
+      "inherits": "base",
+      "architecture": { "value": "x64", "strategy": "external" },
+      "cacheVariables": { "VCPKG_TARGET_TRIPLET": "x64-windows-tsdl" },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "linux-x64-system",
+      "description": "Distro/Flatpak build against an installed libtorrent-rasterbar (no vcpkg)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TSDL_USE_VCPKG": "OFF",
+        "TSDL_SYSTEM_LIBTORRENT": "ON"
+      },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "linux-x64-release", "configurePreset": "linux-x64-release" },
+    { "name": "windows-x64-release", "configurePreset": "windows-x64-release" },
+    { "name": "linux-x64-system", "configurePreset": "linux-x64-system" }
+  ]
+}

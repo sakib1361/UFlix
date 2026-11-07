@@ -1,0 +1,104 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Page x:Class="UFlix.Cross.Pages.HomePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      mc:Ignorable="d"
+      xmlns:models="using:UFlix.Engine.Models"
+      Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+      xmlns:pr="using:UFlix.Engine.MediaProviders"
+      xmlns:tm="using:UFlix.Cross.Templates">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="80" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <AutoSuggestBox x:Name="SearchBox"
+                        QueryIcon="Find"
+                        Width="400"
+                        ItemsSource="{x:Bind SearchSuggestions}"
+                        VerticalAlignment="Center"
+                        TextMemberPath="Title"
+                        QuerySubmitted="SearchBox_QuerySubmitted"
+                        TextChanged="SearchBox_TextChanged">
+            <AutoSuggestBox.ItemTemplate>
+                <DataTemplate x:DataType="models:MediaItem">
+                    <Grid Margin="5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="50" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <tm:CustomImage DecodeWidth="50"
+                                        IsTMDB="True"
+                                        Source="{x:Bind Image}" />
+                        <StackPanel Margin="5,0"
+                                    Grid.Column="1">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{x:Bind ContentType}"
+                                           FontSize="16" />
+                                <TextBlock FontSize="16"
+                                           Margin="10,0"
+                                           MaxLines="2"
+                                           FontWeight="SemiBold"
+                                           Text="{x:Bind Title}" />
+                            </StackPanel>
+                            <TextBlock FontSize="12"
+                                       Foreground="Gray"
+                                       Text="{x:Bind Year}" />
+                            <TextBlock FontSize="12"
+                                       Text="{x:Bind Description}"
+                                       TextWrapping="WrapWholeWords"
+                                       MaxLines="2" />
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+            </AutoSuggestBox.ItemTemplate>
+        </AutoSuggestBox>
+      
+        <!-- Netflix-style: rows scroll vertically and are not selectable; only the posters inside a row react.
+             The ListView stays for incremental loading of rows, with a bare container (no hover/selection/focus chrome). -->
+        <ListView ItemsSource="{x:Bind MediaProviders}"
+                  SelectionMode="None"
+                  IsItemClickEnabled="False"
+                  IsTabStop="False"
+                  x:Name="MediaList"
+                  Grid.Row="1">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="IsTabStop"
+                            Value="False" />
+                    <Setter Property="Padding"
+                            Value="0" />
+                    <Setter Property="Margin"
+                            Value="0" />
+                    <Setter Property="HorizontalContentAlignment"
+                            Value="Stretch" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ListViewItem">
+                                <ContentPresenter Content="{TemplateBinding Content}"
+                                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </ListView.ItemContainerStyle>
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="pr:IMediaProvider">
+                    <tm:HorizontalView OnMediaSelected="HorizontalView_OnMediaSelected"
+                                       OnExploreClicked="HorizontalView_OnExploreClicked"
+                                       Height="470"
+                                       SourceProvider="{Binding}" />
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+        <ProgressRing x:Name="ProgressLoadingRing"
+                      Grid.Row="1"
+                      IsActive="False"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center" />
+    </Grid>
+</Page>

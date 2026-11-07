@@ -1,0 +1,273 @@
+<UserControl x:Class="UFlix.Cross.Player.MediaInfoPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="using:UFlix.Engine.Models"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             VerticalContentAlignment="Center"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DataContext="{d:DesignInstance models:PlayerInformation, IsDesignTimeCreatable=False}"
+             mc:Ignorable="d">
+    <ScrollViewer VerticalContentAlignment="Center" Margin="0,10,0,120">
+        <Grid Padding="5,5,5,15"
+              Background="{StaticResource PlayerBarBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition />
+                <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition />
+            </Grid.RowDefinitions>
+            <StackPanel>
+                <!-- Player -->
+                <StackPanel Style="{StaticResource FlowTable}">
+                    <TextBlock Style="{StaticResource TextHeader}"
+                               Text="Player" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Title" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding Title}"
+                                   Margin="-100 0 0 0"
+                                   Width="235" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="CurTime" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding CurrentTIme}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Duration" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding Duration}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="BufferedDuration" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding BufferedDuration}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Status" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding Status}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="CanPlay" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding CanPlay}" />
+                    </StackPanel>
+                </StackPanel>
+                <!-- Audio -->
+                <StackPanel Style="{StaticResource FlowTable}">
+                    <TextBlock Style="{StaticResource TextHeader}"
+                               Text="Audio" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="IsOpened" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding AudioOpened}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Delay" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding AudioDelay}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Volume" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding AudioVolume}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Mute" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding AudioMute}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Codec" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding AudioCodec}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="ChannelLayout" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding AudioChanelLayout}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="SampleFormat" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding AudioSampleFormat}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal"
+                                Margin="0 0 0 10">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="SampleRate" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding AudioSampleRate}" />
+                    </StackPanel>
+                </StackPanel>
+                <!-- Subtitles -->
+                <StackPanel  Style="{StaticResource FlowTable}">
+                    <TextBlock Style="{StaticResource TextHeader}"
+                               Text="Subtitles" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="IsOpened" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding SubtitleOpened}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Codec" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding SubtileCodec}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Sub offset" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding SubtitleDelay}" />
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+            <StackPanel Grid.Column="1">
+                <!-- Video -->
+                <StackPanel Style="{StaticResource FlowTable}">
+                    <TextBlock Style="{StaticResource TextHeader}"
+                               Text="Video" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="IsOpened" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding VideoOpened}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Codec" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding VideoCodec}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="AspectRatio" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding VideoAspectRatio}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="PixelFormat" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding VideoPixelFormat}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Width" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding VideoWidth}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Height" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding VideoHeight}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="FPS" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   TextWrapping="NoWrap"
+                                   Width="60"
+                                   Text="{Binding FPS}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="VideoAcceleration" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding VideoAccelaration}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="VideoProcessor" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding VideoProcessor}" />
+                    </StackPanel>
+                </StackPanel>
+               
+                <!-- Stats -->
+                <StackPanel Width="370" Style="{StaticResource FlowTable}">
+                    <TextBlock Style="{StaticResource TextHeader}"
+                               Text="Stats" />
+
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="BitRate" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding Bitrate}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Video.BitRate" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding VideoBitrate}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal"
+                                Margin="0 0 0 10">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Audio.BitRate" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding AudioBitrate}" />
+                    </StackPanel>
+                </StackPanel>
+                <!-- Torrent Stats -->
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Download Rate" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding DownloadRate}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Downloaded" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding Downloaded}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Upload Rate" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding UploadRate}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Uploaded" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding Uploaded}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="ETA" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding ETA}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource TextInfo}"
+                                   Text="Peers" />
+                        <TextBlock Style="{StaticResource TextValue}"
+                                   Text="{Binding Peers}" />
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+    
+</UserControl>

@@ -1,0 +1,58 @@
+name: Set up UFlix build
+description: Installs .NET 10, restores the pinned dotnet tools (vpk), caches NuGet packages and writes secrets.env from the given API keys.
+
+inputs:
+  dotnet-version:
+    description: .NET SDK version
+    default: 10.0.x
+  tmdb-api-key:
+    description: UFLIX_TMDB_API_KEY
+    default: ''
+  opensubtitles-api-key:
+    description: UFLIX_OPENSUBTITLES_API_KEY
+    default: ''
+  opensubtitles-username:
+    description: UFLIX_OPENSUBTITLES_USERNAME
+    default: ''
+  opensubtitles-password:
+    description: UFLIX_OPENSUBTITLES_PASSWORD
+    default: ''
+  subdl-api-key:
+    description: UFLIX_SUBDL_API_KEY
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+
+    - uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'dotnet-tools.json') }}
+        restore-keys: nuget-${{ runner.os }}-
+
+    - name: Restore dotnet tools
+      shell: bash
+      run: dotnet tool restore
+
+    # secrets.env is git-ignored and compiled into UFlix.Engine.dll (see secrets.env.example)
+    - name: Write secrets.env
+      shell: bash
+      env:
+        TMDB: ${{ inputs.tmdb-api-key }}
+        OS_KEY: ${{ inputs.opensubtitles-api-key }}
+        OS_USER: ${{ inputs.opensubtitles-username }}
+        OS_PASS: ${{ inputs.opensubtitles-password }}
+        SUBDL: ${{ inputs.subdl-api-key }}
+      run: |
+        {
+          printf 'UFLIX_TMDB_API_KEY=%s\n' "$TMDB"
+          printf 'UFLIX_OPENSUBTITLES_API_KEY=%s\n' "$OS_KEY"
+          printf 'UFLIX_OPENSUBTITLES_USERNAME=%s\n' "$OS_USER"
+          printf 'UFLIX_OPENSUBTITLES_PASSWORD=%s\n' "$OS_PASS"
+          printf 'UFLIX_SUBDL_API_KEY=%s\n' "$SUBDL"
+        } > secrets.env
+        [ -n "$TMDB" ] || echo "::warning::UFLIX_TMDB_API_KEY secret is not set: the build will have no TMDB key"

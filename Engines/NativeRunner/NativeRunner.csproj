@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!-- native assets for one RID only: the publish RID, else the head/host OS (properties are evaluated before items) -->
+  <PropertyGroup>
+    <NativeRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</NativeRid>
+    <NativeRid Condition="'$(NativeRid)' == '' and ($(TargetFramework.Contains('-windows')) or $([MSBuild]::IsOSPlatform('windows')))">win-x64</NativeRid>
+    <NativeRid Condition="'$(NativeRid)' == ''">linux-x64</NativeRid>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="runtimes\$(NativeRid)\native\*.so;runtimes\$(NativeRid)\native\*.dll">
+      <Pack>true</Pack>
+      <PackagePath>runtimes</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

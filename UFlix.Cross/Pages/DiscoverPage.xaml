@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="UFlix.Cross.Pages.DiscoverPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:UFlix.Cross.Pages"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    xmlns:models="using:UFlix.Engine.Models"
+    xmlns:tm="using:UFlix.Cross.Templates"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="50" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <StackPanel Orientation="Horizontal">
+            <ComboBox ItemsSource="{x:Bind ContentTypes}" 
+                      x:Name="MediaContentTypeCombo"
+                      SelectedIndex="0"
+                      FontSize="24"
+                      SelectionChanged="MediaContentType_SelectionChanged"/>
+            <ComboBox ItemsSource="{x:Bind Genres}"
+                      x:Name="GenreCombo" 
+                      FontSize="24"
+                      Margin="20,0"
+                      SelectionChanged="GenreCombo_SelectionChanged"/>
+        </StackPanel>
+        <GridView IncrementalLoadingThreshold="1"
+                  IncrementalLoadingTrigger="Edge"
+                  Grid.Row="1"
+                  x:Name="MediaGrid"
+                  Loaded="MediaGrid_Loaded"
+                  SelectionMode="None"
+                  IsItemClickEnabled="True"
+                  ItemClick="GridView_ItemClick"
+                  ItemsSource="{x:Bind Medias}">
+            <GridView.ItemTemplate>
+                <DataTemplate x:DataType="models:MediaItem">
+                    <StackPanel HorizontalAlignment="Center"
+                                Margin="15"
+                                Height="320"
+                                Width="180">
+                        <tm:CustomImage DecodeWidth="180"
+                                        Source="{x:Bind Image}" />
+                        <TextBlock Text="{x:Bind Title}"
+                                   MaxLines="2"
+                                   FontWeight="SemiBold"
+                                   FontSize="18"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="{x:Bind Year}" />
+                    </StackPanel>
+                </DataTemplate>
+            </GridView.ItemTemplate>
+        </GridView>
+        <ProgressRing HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      x:Name="ProgressLoadingRing"
+                      Grid.Row="1" />
+    </Grid>
+</Page>
