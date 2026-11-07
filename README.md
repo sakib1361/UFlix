@@ -4,12 +4,31 @@ A lightweight desktop media player and library for **Windows and Linux**. You ca
 
 UFlix is built with [Uno Platform](https://platform.uno/) (WinUI XAML) and uses [mpv](https://mpv.io/) for playback, with hardware decoding on every platform.
 
-> **Status:** in active development. Linux (X11/XWayland) is the main tested platform. The native Windows (WinAppSDK) build is still in progress.
+> **Status:** in active development. Windows 10/11 (native WinAppSDK) and Linux (X11/XWayland, Ubuntu 24.04+ or equivalent) are both supported.
+
+## Screenshots
+
+| Home | Search, with Movies and Shows tabs |
+|---|---|
+| ![Home page with popular movies and shows from TMDB](screenshots/home.jpg) | ![Search suggestions split into Movies and Shows tabs](screenshots/search.jpg) |
+| **Player** | **…with the info panel** |
+| ![Big Buck Bunny playing in the UFlix player](screenshots/player.jpg) | ![Player info panel: codecs, resolution, frame rate and hardware decoding](screenshots/player-info.jpg) |
+
+*Player screenshots: [Big Buck Bunny](https://peach.blender.org/) © 2008 Blender Foundation, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), streamed from the [Internet Archive](https://archive.org/details/BigBuckBunnyFULLHD60FPS).*
+
+## Download
+
+Get the latest version from [Releases](../../releases/latest):
+
+- **Windows:** `UFlix-win-Setup.exe` installs per user, with no admin rights needed.
+- **Linux:** `UFlix.AppImage`. Make it executable (`chmod +x UFlix.AppImage`) and run it.
+
+Both update themselves. UFlix checks for a new version once a day, or when you use **Settings → Updates → Check now**.
 
 ## Features
 
 - **Local files**: picks up subtitles next to the video or in `Subs/`, and makes thumbnails for your library
-- **Torrents**: plays magnet links and `.torrent` files while they download, using a native libtorrent engine that pauses playback before the buffer runs out
+- **Torrents**: plays magnet links while they download, using a native libtorrent engine that pauses playback before the buffer runs out
 - **YouTube**: plays and downloads through yt-dlp / YoutubeExplode, with a quality picker
 - **IPTV and web streams**
 - **Discover**: movie and TV metadata from TMDB, plus a watchlist

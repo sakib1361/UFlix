@@ -68,6 +68,9 @@ namespace UFlix.Cross.Services
             return _window;
         }
 
+        /// <summary>Raised on the UI thread when the torrent file picker opens (true) and closes (false).</summary>
+        public static event Action<bool> FilePickerChanged;
+
         public static async Task<string> GetSelectedMedia(MediaItem item, List<string> files)
         {
             string mediaFile = null;
@@ -80,7 +83,9 @@ namespace UFlix.Cross.Services
                     {
                         XamlRoot = GetWindow().Content.XamlRoot,
                     };
+                    FilePickerChanged?.Invoke(true);
                     await dlg.ShowAsync();
+                    FilePickerChanged?.Invoke(false);
                     mediaFile = dlg.SelectedFile;
                     result.SetResult(true);
 

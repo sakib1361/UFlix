@@ -1,11 +1,8 @@
 name: Build desktop
 
+# No push/PR trigger: CI builds only when VERSION is bumped (release.yml calls this) or when run by hand (a test build,
+# versioned <VERSION>-ci.<run number>, uploaded as artifacts only).
 on:
-  push:
-    branches: [master, main]
-    paths-ignore: ['doc/**', '**.md', 'VERSION']   # a VERSION change runs release.yml, which builds too
-  pull_request:
-    paths-ignore: ['doc/**', '**.md']
   workflow_dispatch:
   workflow_call:
     inputs:

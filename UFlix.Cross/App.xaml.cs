@@ -21,6 +21,7 @@ public partial class App : Application
         NavigationHelper.Initialize(_window, new PlayerController());
         _window.Activate();
         MemoryProbe.Run(_window);
+        ScreenshotTour.Run(_window);
         AppUpdater.Instance.Start(_window.DispatcherQueue);
 
         // "UFlix.Cross <file>" plays a local file straight away (desktop file associations)

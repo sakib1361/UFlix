@@ -9,6 +9,159 @@
       Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
       xmlns:pr="using:UFlix.Engine.MediaProviders"
       xmlns:tm="using:UFlix.Cross.Templates">
+    <Page.Resources>
+        <!-- Uno's stock AutoSuggestBox template (Uno.UI.FluentTheme AutoSuggestBox_themeresources.xaml, same part names and
+             bindings) with one change: the box's Description is not shown under the TextBox but as a header row above the
+             suggestion list (the Movies / Shows tab buttons). DesiredCandidateWindowAlignment and
+             ShouldConstrainToRootBounds are left out (not implemented in Uno). -->
+        <ControlTemplate x:Key="TabbedSuggestTemplate"
+                         TargetType="AutoSuggestBox">
+            <Grid x:Name="LayoutRoot">
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroup x:Name="Orientation">
+                        <VisualState x:Name="Landscape" />
+                        <VisualState x:Name="Portrait" />
+                    </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+                <TextBox x:Name="TextBox"
+                         Style="{TemplateBinding TextBoxStyle}"
+                         PlaceholderText="{TemplateBinding PlaceholderText}"
+                         Header="{TemplateBinding Header}"
+                         Width="{TemplateBinding Width}"
+                         Foreground="{TemplateBinding Foreground}"
+                         Background="{TemplateBinding Background}"
+                         BorderBrush="{TemplateBinding BorderBrush}"
+                         BorderThickness="{TemplateBinding BorderThickness}"
+                         FontSize="{TemplateBinding FontSize}"
+                         FontFamily="{TemplateBinding FontFamily}"
+                         FontWeight="{TemplateBinding FontWeight}"
+                         FontStretch="{TemplateBinding FontStretch}"
+                         VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                         HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                         ScrollViewer.BringIntoViewOnFocusChange="False"
+                         Canvas.ZIndex="0"
+                         Margin="0"
+                         UseSystemFocusVisuals="{TemplateBinding UseSystemFocusVisuals}"
+                         CornerRadius="{TemplateBinding CornerRadius}" />
+                <Popup x:Name="SuggestionsPopup">
+                    <Border x:Name="SuggestionsContainer"
+                            Padding="{ThemeResource AutoSuggestListMargin}"
+                            BorderThickness="{ThemeResource AutoSuggestListBorderThemeThickness}"
+                            BorderBrush="{ThemeResource AutoSuggestBoxSuggestionsListBorderBrush}"
+                            Background="{ThemeResource AutoSuggestBoxSuggestionsListBackground}"
+                            CornerRadius="{ThemeResource OverlayCornerRadius}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <ContentPresenter Content="{TemplateBinding Description}"
+                                              HorizontalAlignment="Stretch"
+                                              HorizontalContentAlignment="Stretch"
+                                              Margin="4,4,4,0" />
+                            <ListView x:Name="SuggestionsList"
+                                      Grid.Row="1"
+                                      DisplayMemberPath="{TemplateBinding DisplayMemberPath}"
+                                      IsItemClickEnabled="True"
+                                      ItemTemplate="{TemplateBinding ItemTemplate}"
+                                      ItemTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                      ItemContainerStyle="{TemplateBinding ItemContainerStyle}"
+                                      MaxHeight="{ThemeResource AutoSuggestListMaxHeight}"
+                                      Margin="{ThemeResource AutoSuggestListPadding}" />
+                        </Grid>
+                    </Border>
+                </Popup>
+            </Grid>
+        </ControlTemplate>
+
+        <!-- a tab like the Settings dialog's Pivot headers: plain text, dimmed when not selected, accent pipe under the selected
+             one. Never takes focus: the search box closes its list when focus leaves its TextBox. -->
+        <Style x:Key="SearchTabStyle"
+               TargetType="ToggleButton">
+            <Setter Property="HorizontalAlignment"
+                    Value="Stretch" />
+            <Setter Property="Padding"
+                    Value="0,8,0,6" />
+            <Setter Property="FontSize"
+                    Value="16" />
+            <Setter Property="Background"
+                    Value="Transparent" />
+            <Setter Property="Foreground"
+                    Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Setter Property="IsTabStop"
+                    Value="False" />
+            <Setter Property="AllowFocusOnInteraction"
+                    Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid Background="{TemplateBinding Background}"
+                              Padding="{TemplateBinding Padding}">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal" />
+                                    <VisualState x:Name="PointerOver">
+                                        <VisualState.Setters>
+                                            <Setter Target="Label.Foreground"
+                                                    Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <VisualState.Setters>
+                                            <Setter Target="Label.Foreground"
+                                                    Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Checked">
+                                        <VisualState.Setters>
+                                            <Setter Target="Label.Foreground"
+                                                    Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                            <Setter Target="Pipe.Visibility"
+                                                    Value="Visible" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="CheckedPointerOver">
+                                        <VisualState.Setters>
+                                            <Setter Target="Label.Foreground"
+                                                    Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                            <Setter Target="Pipe.Visibility"
+                                                    Value="Visible" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="CheckedPressed">
+                                        <VisualState.Setters>
+                                            <Setter Target="Label.Foreground"
+                                                    Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                                            <Setter Target="Pipe.Visibility"
+                                                    Value="Visible" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <Grid HorizontalAlignment="Center">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <ContentPresenter x:Name="Label"
+                                                  Content="{TemplateBinding Content}"
+                                                  Foreground="{TemplateBinding Foreground}"
+                                                  FontSize="{TemplateBinding FontSize}" />
+                                <Rectangle x:Name="Pipe"
+                                           Grid.Row="1"
+                                           Height="3"
+                                           Margin="0,6,0,0"
+                                           RadiusX="1.5"
+                                           RadiusY="1.5"
+                                           Fill="{ThemeResource AccentFillColorDefaultBrush}"
+                                           Visibility="Collapsed" />
+                            </Grid>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Page.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="80" />
@@ -20,8 +173,31 @@
                         ItemsSource="{x:Bind SearchSuggestions}"
                         VerticalAlignment="Center"
                         TextMemberPath="Title"
+                        Template="{StaticResource TabbedSuggestTemplate}"
                         QuerySubmitted="SearchBox_QuerySubmitted"
                         TextChanged="SearchBox_TextChanged">
+            <!-- shown as the header of the suggestion list (TabbedSuggestTemplate), not under the box -->
+            <AutoSuggestBox.Description>
+                <Grid x:Name="TypeFilter"
+                      BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
+                      BorderThickness="0,0,0,1"
+                      Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ToggleButton x:Name="MoviesFilter"
+                                  Style="{StaticResource SearchTabStyle}"
+                                  Content="Movies"
+                                  IsChecked="True"
+                                  Click="Filter_Click" />
+                    <ToggleButton x:Name="ShowsFilter"
+                                  Grid.Column="1"
+                                  Style="{StaticResource SearchTabStyle}"
+                                  Content="Shows"
+                                  Click="Filter_Click" />
+                </Grid>
+            </AutoSuggestBox.Description>
             <AutoSuggestBox.ItemTemplate>
                 <DataTemplate x:DataType="models:MediaItem">
                     <Grid Margin="5">
@@ -55,7 +231,7 @@
                 </DataTemplate>
             </AutoSuggestBox.ItemTemplate>
         </AutoSuggestBox>
-      
+
         <!-- Netflix-style: rows scroll vertically and are not selectable; only the posters inside a row react.
              The ListView stays for incremental loading of rows, with a bare container (no hover/selection/focus chrome). -->
         <ListView ItemsSource="{x:Bind MediaProviders}"

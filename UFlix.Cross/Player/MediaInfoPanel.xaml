@@ -2,11 +2,15 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:models="using:UFlix.Engine.Models"
+             xmlns:tm="using:UFlix.Cross.Templates"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              VerticalContentAlignment="Center"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              d:DataContext="{d:DesignInstance models:PlayerInformation, IsDesignTimeCreatable=False}"
              mc:Ignorable="d">
+    <UserControl.Resources>
+        <tm:NullVisibilityConverter x:Key="NullVisibility" />
+    </UserControl.Resources>
     <ScrollViewer VerticalContentAlignment="Center" Margin="0,10,0,120">
         <Grid Padding="5,5,5,15"
               Background="{StaticResource PlayerBarBrush}">
@@ -227,8 +231,8 @@
                                    Text="{Binding AudioBitrate}" />
                     </StackPanel>
                 </StackPanel>
-                <!-- Torrent Stats -->
-                <StackPanel>
+                <!-- Torrent Stats: only torrents set Peers -->
+                <StackPanel Visibility="{Binding Peers, Converter={StaticResource NullVisibility}}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource TextInfo}"
                                    Text="Download Rate" />

@@ -26,6 +26,7 @@ namespace UFlix.Cross.Player
         private bool _updatingSlider;
         private bool _cursorHidden;
         private bool _theater;
+        private bool _pickingFile;
         private MediaItem _openingMedia;
         private MediaItem _detailsFor;
 
@@ -53,6 +54,19 @@ namespace UFlix.Cross.Player
             _idleTimer.Tick += (_, _) => OnIdle();
             AutoplaySwitch.IsOn = PlayerSettings.Instance.YoutubeAutoplay;
             Loaded += PlayerPage_Loaded;
+            // subscribed only while on screen, so the static event never keeps a closed player alive
+            Loaded += (_, _) =>
+            {
+                NavigationHelper.FilePickerChanged -= OnFilePicker;
+                NavigationHelper.FilePickerChanged += OnFilePicker;
+            };
+            Unloaded += (_, _) => NavigationHelper.FilePickerChanged -= OnFilePicker;
+        }
+
+        private void OnFilePicker(bool open)
+        {
+            _pickingFile = open;
+            UpdateBusy();
         }
 
         private void PlayerPage_Loaded(object sender, RoutedEventArgs e)
@@ -106,7 +120,8 @@ namespace UFlix.Cross.Player
             // while a torrent opens, CurrentMedia is still the previous item (or null), so use the item being opened
             var torrent = busy && (_openingMedia ?? mediaContainer.CurrentMedia)?.MediaType == MediaType.Torrent;
             ProgressIndicator.IsActive = busy;
-            BufferingPanel.Visibility = torrent ? Visibility.Visible : Visibility.Collapsed;
+            // the torrent file picker sits in the same spot: hide the buffering box behind it
+            BufferingPanel.Visibility = torrent && !_pickingFile ? Visibility.Visible : Visibility.Collapsed;
             if (torrent) mediaContainer.StartUI();
             else if (InfoPanel.Visibility == Visibility.Collapsed) mediaContainer.CloseUI();
             if (busy) SetControllerVisible(true);
@@ -320,6 +335,11 @@ namespace UFlix.Cross.Player
         }
 
         private void Stop_Click(object sender, RoutedEventArgs e) => Stop();
+
+        /// <summary>ScreenshotTour: the playback state, and the info (debug) panel toggle.</summary>
+        internal MediaContainer Media => mediaContainer;
+
+        internal void ToggleInfo() => Info_Click(null, null);
 
         private void Info_Click(object sender, RoutedEventArgs e)
         {

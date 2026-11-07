@@ -63,7 +63,7 @@ namespace UFlix.Cross.Player
             Info.VideoHeight = D("video-params/h");
             Info.VideoPixelFormat = S("video-params/hw-pixelformat") ?? S("video-params/pixelformat");
             Info.VideoAspectRatio = D("video-params/aspect").ToString("N3");
-            Info.FPS = D("container-fps");
+            Info.FPS = Math.Round(D("container-fps"), 2);
             Info.VideoProcessor = S("hwdec-current") is { Length: > 0 } hw && hw != "no" ? $"HW ({hw})" : "SW";
             Info.VideoAccelaration = Info.VideoProcessor != "SW";
             Info.VideoBitrate = $"{D("video-bitrate") / 1000000.0:N2} Mb/s";
