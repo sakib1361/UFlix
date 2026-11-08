@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetches an LGPL libmpv-2.dll (zhongfly/mpv-winbuild) into UFlix.Cross/runtimes/win-x64/native/ and writes BUILDINFO.txt.
+# Fetches an LGPL libmpv-2.dll (zhongfly/mpv-winbuild) into runtimes/win-x64/native/ and writes BUILDINFO.txt.
 # zhongfly keeps only about a month of nightly releases, so this takes the newest one (x86_64, not the -v3 build); the
 # Natives workflow then mirrors the result into this repo's own natives release (Native/natives.lock), which is what builds use.
 # MPV_URL (+ optional MPV_SHA256) picks a specific archive instead. Needs curl, sha256sum and 7z. Runs on Linux or Git Bash.
@@ -13,7 +13,7 @@ fi
 ASSET=$(basename "$MPV_URL")
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-DEST="$ROOT/UFlix.Cross/runtimes/win-x64/native"
+DEST="$ROOT/runtimes/win-x64/native"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 

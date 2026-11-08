@@ -1,0 +1,331 @@
+// YouTube: home (continue watching, recent searches, topics, "For you"), search with filters, channel uploads.
+
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { Card, CardGrid, MediaRow, SearchField, Chip, ChipStrip, Busy, IconButton, PopupMenu, MenuEntry } from "../widgets.slint";
+
+export global YoutubeState {
+    in property <int> view; // 0 home, 1 search, 2 channel
+    in property <bool> can-go-back;
+    in-out property <string> query;
+    in property <[string]> suggestions;
+    in-out property <bool> suggestions-open;
+    in property <bool> resolving;
+    // home
+    in property <[Card]> continue-cards;
+    in property <[string]> history;
+    in property <[string]> topics;
+    // feed (home "For you", search results, channel uploads)
+    in property <string> feed-title;
+    in property <[Card]> feed;
+    in property <bool> loading;
+    in property <int> filter;
+    // channel
+    in property <string> channel-title;
+    in property <string> channel-subtitle;
+    in property <image> channel-avatar;
+    // context menu
+    in-out property <bool> menu-open;
+    in-out property <length> menu-x;
+    in-out property <length> menu-y;
+    in property <[MenuEntry]> menu-entries;
+    callback edited(string);
+    callback submit(string);
+    callback pick-suggestion(int);
+    callback back();
+    callback open-continue(int);
+    callback remove-continue(int);
+    callback open(int);
+    callback near-end();
+    callback select-filter(int);
+    callback history-select(int);
+    callback history-remove(int);
+    callback topic(int);
+    callback context(bool /* continue row */, int, length, length);
+    callback menu-pick(int);
+}
+
+component HistoryChip inherits Rectangle {
+    in property <string> text;
+    callback clicked;
+    callback remove;
+    height: 32px;
+    min-width: row.preferred-width;
+    horizontal-stretch: 0;
+    border-radius: 16px;
+    background: ta.has-hover ? Theme.surface-3 : Theme.surface-2;
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+    row := HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 4px;
+        spacing: 6px;
+        Image {
+            source: Icons.history;
+            width: 16px;
+            colorize: Theme.text-3;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            text: root.text;
+            color: Theme.text;
+            font-size: Theme.font-small + 1px;
+            vertical-alignment: center;
+        }
+        IconButton {
+            icon: Icons.close;
+            size: 24px;
+            icon-size: 14px;
+            tooltip: "Remove";
+            y: (parent.height - self.height) / 2;
+            clicked => { root.remove(); }
+        }
+    }
+}
+
+export component YoutubePage inherits Rectangle {
+    background: Theme.bg;
+    scroll := ScrollView {
+        changed content-y => {
+            if (-self.content-y + self.visible-height * 2 > self.content-height) { YoutubeState.near-end(); }
+        }
+        VerticalLayout {
+            padding: Theme.page-padding;
+            padding-top: 96px;
+            spacing: Theme.gap-xl;
+
+            // channel header
+            if YoutubeState.view == 2: HorizontalLayout {
+                spacing: Theme.gap-m;
+                Rectangle {
+                    width: 88px;
+                    height: 88px;
+                    border-radius: 44px;
+                    clip: true;
+                    background: Theme.surface-3;
+                    Image {
+                        source: Icons.person;
+                        width: 40px;
+                        colorize: Theme.text-3;
+                    }
+                    Image {
+                        source: YoutubeState.channel-avatar;
+                        width: 100%;
+                        height: 100%;
+                        image-fit: cover;
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 4px;
+                    Text {
+                        text: YoutubeState.channel-title;
+                        color: Theme.text;
+                        font-size: Theme.font-display;
+                        font-weight: 800;
+                    }
+                    Text {
+                        text: YoutubeState.channel-subtitle;
+                        color: Theme.text-3;
+                    }
+                }
+            }
+
+            // home: continue watching, recent searches, topics
+            if YoutubeState.view == 0 && YoutubeState.continue-cards.length > 0: MediaRow {
+                title: "Continue watching";
+                cards: YoutubeState.continue-cards;
+                card-width: Theme.thumb-width;
+                image-height: Theme.thumb-height;
+                can-delete: true;
+                can-explore: false;
+                placeholder: Icons.youtube;
+                open(i) => { YoutubeState.open-continue(i); }
+                remove(i) => { YoutubeState.remove-continue(i); }
+                context(i, x, y) => { YoutubeState.context(true, i, x, y); }
+            }
+            if YoutubeState.view == 0 && YoutubeState.history.length > 0: VerticalLayout {
+                spacing: Theme.gap;
+                Text {
+                    text: "Recent searches";
+                    color: Theme.text;
+                    font-size: Theme.font-title;
+                    font-weight: 700;
+                }
+                Flickable {
+                    height: 32px;
+                    content-width: hist.preferred-width;
+                    hist := HorizontalLayout {
+                        spacing: Theme.gap-s;
+                        alignment: start;
+                        for h[i] in YoutubeState.history: HistoryChip {
+                            text: h;
+                            clicked => { YoutubeState.history-select(i); }
+                            remove => { YoutubeState.history-remove(i); }
+                        }
+                    }
+                }
+            }
+            if YoutubeState.view == 0: VerticalLayout {
+                spacing: Theme.gap;
+                Text {
+                    text: "Explore";
+                    color: Theme.text;
+                    font-size: Theme.font-title;
+                    font-weight: 700;
+                }
+                ChipStrip {
+                    items: YoutubeState.topics;
+                    select(i) => { YoutubeState.topic(i); }
+                }
+            }
+
+            // search filters
+            if YoutubeState.view == 1: HorizontalLayout {
+                spacing: Theme.gap-s;
+                alignment: start;
+                Chip {
+                    text: "All";
+                    selected: YoutubeState.filter == 0;
+                    clicked => { YoutubeState.select-filter(0); }
+                }
+                Chip {
+                    text: "Videos";
+                    has-icon: true;
+                    icon: Icons.play-circle;
+                    selected: YoutubeState.filter == 1;
+                    clicked => { YoutubeState.select-filter(1); }
+                }
+                Chip {
+                    text: "Playlists";
+                    has-icon: true;
+                    icon: Icons.playlist;
+                    selected: YoutubeState.filter == 2;
+                    clicked => { YoutubeState.select-filter(2); }
+                }
+                Chip {
+                    text: "Channels";
+                    has-icon: true;
+                    icon: Icons.person;
+                    selected: YoutubeState.filter == 3;
+                    clicked => { YoutubeState.select-filter(3); }
+                }
+            }
+
+            // the feed
+            VerticalLayout {
+                spacing: Theme.gap;
+                if YoutubeState.feed-title != "": Text {
+                    text: YoutubeState.feed-title;
+                    color: Theme.text;
+                    font-size: Theme.font-title;
+                    font-weight: 700;
+                }
+                CardGrid {
+                    cards: YoutubeState.feed;
+                    card-width: 272px;
+                    image-height: 153px;
+                    spacing: Theme.gap-m;
+                    placeholder: Icons.youtube;
+                    open(i) => { YoutubeState.open(i); }
+                    context(i, x, y) => { YoutubeState.context(false, i, x, y); }
+                }
+                if YoutubeState.loading: Busy {
+                    height: 48px;
+                }
+            }
+        }
+    }
+
+    // top bar: back + search with suggestions
+    Rectangle {
+        y: 0;
+        height: 84px;
+        background: @linear-gradient(180deg, Theme.bg 70%, #11111300 100%);
+    }
+    if YoutubeState.can-go-back: IconButton {
+        x: Theme.page-padding;
+        y: 24px;
+        icon: Icons.arrow-back;
+        tooltip: "Back";
+        clicked => { YoutubeState.back(); }
+    }
+    search := SearchField {
+        y: 20px;
+        width: Math.min(620px, root.width - 160px);
+        x: (root.width - self.width) / 2;
+        placeholder: "Search YouTube or paste a link";
+        text <=> YoutubeState.query;
+        busy: YoutubeState.resolving;
+        edited(t) => {
+            YoutubeState.suggestions-open = true;
+            YoutubeState.edited(t);
+        }
+        accepted(t) => {
+            YoutubeState.suggestions-open = false;
+            YoutubeState.submit(t);
+        }
+    }
+    if YoutubeState.suggestions-open && YoutubeState.suggestions.length > 0 && YoutubeState.query != "": Rectangle {
+        x: search.x;
+        y: search.y + search.height + 6px;
+        width: search.width;
+        height: list.preferred-height;
+        background: Theme.surface;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.border;
+        drop-shadow-blur: 30px;
+        drop-shadow-color: #000000c0;
+        list := VerticalLayout {
+            padding: 6px;
+            for s[i] in YoutubeState.suggestions: Rectangle {
+                height: 36px;
+                border-radius: Theme.radius-s;
+                background: sta.has-hover ? Theme.surface-3 : transparent;
+                HorizontalLayout {
+                    padding-left: 12px;
+                    spacing: 12px;
+                    Image {
+                        source: Icons.search;
+                        width: 16px;
+                        colorize: Theme.text-3;
+                        y: (parent.height - self.height) / 2;
+                    }
+                    Text {
+                        text: s;
+                        color: Theme.text;
+                        vertical-alignment: center;
+                    }
+                }
+                sta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        YoutubeState.suggestions-open = false;
+                        YoutubeState.pick-suggestion(i);
+                    }
+                }
+            }
+        }
+    }
+
+    // card context menu
+    if YoutubeState.menu-open: TouchArea {
+        clicked => { YoutubeState.menu-open = false; }
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down && e.button == PointerEventButton.right) { YoutubeState.menu-open = false; }
+        }
+    }
+    if YoutubeState.menu-open: PopupMenu {
+        x: Math.min(YoutubeState.menu-x - root.absolute-position.x, root.width - self.width - 8px);
+        y: Math.min(YoutubeState.menu-y - root.absolute-position.y, root.height - self.height - 8px);
+        entries: YoutubeState.menu-entries;
+        picked(i) => {
+            YoutubeState.menu-open = false;
+            YoutubeState.menu-pick(i);
+        }
+    }
+}

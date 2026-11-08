@@ -1,0 +1,185 @@
+// Home: TMDB search with Movies/Shows results, then catalogue rows (continue watching, popular, top seeded, genres).
+
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { Card, MediaRow, SearchField, Chip, Busy } from "../widgets.slint";
+
+export struct RowData {
+    title: string,
+    cards: [Card],
+    can-delete: bool,
+    can-explore: bool,
+    loading: bool,
+}
+
+export global HomeState {
+    in property <[RowData]> rows;
+    in property <bool> loading;
+    // search
+    in-out property <string> query;
+    in property <bool> searching;
+    in property <[Card]> movie-results;
+    in property <[Card]> show-results;
+    in-out property <int> tab; // 0 movies, 1 shows
+    in-out property <bool> results-open;
+    callback search-edited(string);
+    callback open-result(int /* tab */, int /* index */);
+    // rows
+    callback open(int /* row */, int /* index */);
+    callback remove(int, int);
+    callback explore(int);
+    callback row-near-end(int);
+    callback rows-near-end();
+}
+
+component ResultItem inherits Rectangle {
+    in property <Card> card;
+    callback clicked;
+    height: 76px;
+    border-radius: Theme.radius-s;
+    background: ta.has-hover ? Theme.surface-3 : transparent;
+    HorizontalLayout {
+        padding: 6px;
+        padding-left: 10px;
+        spacing: 12px;
+        Rectangle {
+            width: 43px;
+            border-radius: 4px;
+            clip: true;
+            background: Theme.surface-3;
+            Image {
+                source: root.card.image;
+                width: 100%;
+                height: 100%;
+                image-fit: cover;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            Text {
+                text: root.card.title;
+                color: Theme.text;
+                font-weight: 600;
+                overflow: elide;
+            }
+            Text {
+                text: root.card.subtitle;
+                color: Theme.text-3;
+                font-size: Theme.font-small;
+            }
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component HomePage inherits Rectangle {
+    background: Theme.bg;
+    property <[Card]> results: HomeState.tab == 0 ? HomeState.movie-results : HomeState.show-results;
+    property <bool> has-results: HomeState.movie-results.length + HomeState.show-results.length > 0;
+
+    scroll := ScrollView {
+        changed content-y => {
+            if (-self.content-y + self.visible-height * 2 > self.content-height) { HomeState.rows-near-end(); }
+        }
+        VerticalLayout {
+            padding: Theme.page-padding;
+            padding-top: 96px;
+            spacing: Theme.gap-xl;
+            for row[r] in HomeState.rows: MediaRow {
+                title: row.title;
+                cards: row.cards;
+                can-delete: row.can-delete;
+                can-explore: row.can-explore;
+                loading: row.loading;
+                open(i) => { HomeState.open(r, i); }
+                remove(i) => { HomeState.remove(r, i); }
+                explore => { HomeState.explore(r); }
+                near-end => { HomeState.row-near-end(r); }
+            }
+            if HomeState.loading: Busy {
+                height: 48px;
+            }
+        }
+    }
+
+    // Top bar: search, floating over the rows.
+    Rectangle {
+        y: 0;
+        height: 84px;
+        background: @linear-gradient(180deg, Theme.bg 70%, #11111300 100%);
+    }
+    search := SearchField {
+        y: 20px;
+        width: Math.min(560px, root.width - 64px);
+        x: (root.width - self.width) / 2;
+        placeholder: "Search movies and shows";
+        text <=> HomeState.query;
+        busy: HomeState.searching;
+        edited(t) => {
+            HomeState.results-open = true;
+            HomeState.search-edited(t);
+        }
+        accepted => {
+            if (root.results.length > 0) { HomeState.open-result(HomeState.tab, 0); }
+        }
+    }
+
+    // Results: Movies / Shows tabs over the result list.
+    if HomeState.results-open && (root.has-results || HomeState.searching) && HomeState.query != "": Rectangle {
+        x: search.x;
+        y: search.y + search.height + 8px;
+        width: search.width;
+        height: Math.min(520px, root.height - self.y - 24px);
+        background: Theme.surface;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.border;
+        drop-shadow-blur: 32px;
+        drop-shadow-color: #000000c0;
+        clip: true;
+        TouchArea { }
+        VerticalLayout {
+            padding: Theme.gap-s;
+            spacing: Theme.gap-s;
+            HorizontalLayout {
+                spacing: Theme.gap-s;
+                padding: 4px;
+                Chip {
+                    text: "Movies (" + HomeState.movie-results.length + ")";
+                    has-icon: true;
+                    icon: Icons.movie;
+                    selected: HomeState.tab == 0;
+                    clicked => { HomeState.tab = 0; }
+                }
+                Chip {
+                    text: "Shows (" + HomeState.show-results.length + ")";
+                    has-icon: true;
+                    icon: Icons.tv;
+                    selected: HomeState.tab == 1;
+                    clicked => { HomeState.tab = 1; }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                if HomeState.searching: Busy {
+                    width: 40px;
+                    dot: 5px;
+                }
+            }
+            ScrollView {
+                VerticalLayout {
+                    for c[i] in root.results: ResultItem {
+                        card: c;
+                        clicked => {
+                            HomeState.results-open = false;
+                            HomeState.open-result(HomeState.tab, i);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,266 @@
+// Torrents: the session's downloads (progress, pause/resume, remove, play) and a search by movie name.
+
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { Chip, ChipStrip, IconButton, Button, ButtonKind, Busy, SearchField } from "../widgets.slint";
+import { TorrentRow } from "../dialogs/title.slint";
+
+export struct DownloadRow {
+    title: string,
+    meta: string,
+    progress: float,
+    paused: bool,
+    finished: bool,
+}
+
+export global TorrentsState {
+    in-out property <int> tab; // 0 downloading, 1 search
+    in property <[DownloadRow]> downloads;
+    // search
+    in-out property <string> query;
+    in property <[string]> providers;
+    in property <int> provider;
+    in property <[TorrentRow]> results;
+    in property <bool> searching;
+    in property <string> empty-text;
+    callback select-tab(int);
+    callback play(int);
+    callback toggle-pause(int);
+    callback remove(int);
+    callback search(string);
+    callback select-provider(int);
+    callback result-play(int);
+    callback result-download(int);
+}
+
+component DownloadItem inherits Rectangle {
+    in property <DownloadRow> data;
+    callback play();
+    callback pause();
+    callback remove();
+    height: 84px;
+    border-radius: Theme.radius;
+    background: Theme.surface;
+    HorizontalLayout {
+        padding: Theme.gap-m;
+        spacing: Theme.gap-m;
+        Image {
+            source: root.data.finished ? Icons.check : Icons.download;
+            width: 24px;
+            colorize: root.data.finished ? Theme.success : Theme.text-2;
+            y: (parent.height - self.height) / 2;
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 6px;
+            Text {
+                text: root.data.title;
+                color: Theme.text;
+                font-weight: 600;
+                overflow: elide;
+            }
+            Rectangle {
+                height: 4px;
+                border-radius: 2px;
+                background: Theme.surface-3;
+                Rectangle {
+                    x: 0;
+                    width: parent.width * Math.clamp(root.data.progress, 0, 1);
+                    border-radius: 2px;
+                    background: root.data.finished ? Theme.success : root.data.paused ? Theme.text-3 : Theme.accent;
+                }
+            }
+            Text {
+                text: root.data.meta;
+                color: Theme.text-3;
+                font-size: Theme.font-small;
+            }
+        }
+        IconButton {
+            icon: Icons.play;
+            tooltip: "Play";
+            y: (parent.height - self.height) / 2;
+            clicked => { root.play(); }
+        }
+        if !root.data.finished: IconButton {
+            icon: root.data.paused ? Icons.play-circle : Icons.pause-circle;
+            tooltip: root.data.paused ? "Resume" : "Pause";
+            y: (parent.height - self.height) / 2;
+            clicked => { root.pause(); }
+        }
+        IconButton {
+            icon: Icons.delete;
+            tooltip: "Remove (files stay on disk)";
+            y: (parent.height - self.height) / 2;
+            clicked => { root.remove(); }
+        }
+    }
+}
+
+component ResultItem inherits Rectangle {
+    in property <TorrentRow> item;
+    callback play();
+    callback download();
+    height: 64px;
+    border-radius: Theme.radius;
+    background: ta.has-hover ? Theme.surface-2 : transparent;
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.play(); }
+    }
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 8px;
+        spacing: 12px;
+        Image {
+            source: Icons.magnet;
+            width: 20px;
+            colorize: Theme.text-3;
+            y: (parent.height - self.height) / 2;
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 3px;
+            Text {
+                text: root.item.title;
+                color: Theme.text;
+                overflow: elide;
+            }
+            Text {
+                text: root.item.meta;
+                color: Theme.text-3;
+                font-size: Theme.font-small;
+            }
+        }
+        IconButton {
+            icon: Icons.download;
+            tooltip: "Download";
+            y: (parent.height - self.height) / 2;
+            clicked => { root.download(); }
+        }
+        IconButton {
+            icon: Icons.play;
+            tooltip: "Play";
+            tint: white;
+            background: Theme.accent;
+            y: (parent.height - self.height) / 2;
+            clicked => { root.play(); }
+        }
+    }
+}
+
+export component TorrentsPage inherits Rectangle {
+    background: Theme.bg;
+    VerticalLayout {
+        padding: Theme.page-padding;
+        spacing: Theme.gap-l;
+        HorizontalLayout {
+            spacing: Theme.gap;
+            Text {
+                text: "Torrents";
+                color: Theme.text;
+                font-size: Theme.font-display;
+                font-weight: 800;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Chip {
+                text: "Downloading (" + TorrentsState.downloads.length + ")";
+                has-icon: true;
+                icon: Icons.download;
+                selected: TorrentsState.tab == 0;
+                y: (parent.height - self.height) / 2;
+                clicked => { TorrentsState.select-tab(0); }
+            }
+            Chip {
+                text: "Search";
+                has-icon: true;
+                icon: Icons.search;
+                selected: TorrentsState.tab == 1;
+                y: (parent.height - self.height) / 2;
+                clicked => { TorrentsState.select-tab(1); }
+            }
+        }
+
+        if TorrentsState.tab == 0: Rectangle {
+            vertical-stretch: 1;
+            ScrollView {
+                VerticalLayout {
+                    spacing: Theme.gap-s;
+                    padding-right: Theme.gap;
+                    for d[i] in TorrentsState.downloads: DownloadItem {
+                        data: d;
+                        play => { TorrentsState.play(i); }
+                        pause => { TorrentsState.toggle-pause(i); }
+                        remove => { TorrentsState.remove(i); }
+                    }
+                }
+            }
+            if TorrentsState.downloads.length == 0: VerticalLayout {
+                alignment: center;
+                spacing: Theme.gap;
+                Image {
+                    source: Icons.torrents;
+                    width: 56px;
+                    colorize: Theme.surface-3;
+                    x: (parent.width - self.width) / 2;
+                }
+                Text {
+                    text: "No torrents in the session";
+                    color: Theme.text-2;
+                    font-size: Theme.font-subtitle;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "Use the download button on a torrent in a movie or show, or search here.";
+                    color: Theme.text-3;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        if TorrentsState.tab == 1: VerticalLayout {
+            vertical-stretch: 1;
+            spacing: Theme.gap;
+            HorizontalLayout {
+                spacing: Theme.gap;
+                SearchField {
+                    width: 420px;
+                    placeholder: "Movie name";
+                    text <=> TorrentsState.query;
+                    accepted(t) => { TorrentsState.search(t); }
+                }
+                ChipStrip {
+                    horizontal-stretch: 1;
+                    items: TorrentsState.providers;
+                    selected: TorrentsState.provider;
+                    y: (parent.height - self.height) / 2;
+                    select(i) => { TorrentsState.select-provider(i); }
+                }
+            }
+            Rectangle {
+                vertical-stretch: 1;
+                ScrollView {
+                    VerticalLayout {
+                        spacing: 2px;
+                        padding-right: Theme.gap;
+                        for r[i] in TorrentsState.results: ResultItem {
+                            item: r;
+                            play => { TorrentsState.result-play(i); }
+                            download => { TorrentsState.result-download(i); }
+                        }
+                    }
+                }
+                if TorrentsState.searching: Busy {
+                    dot: 10px;
+                }
+                if !TorrentsState.searching && TorrentsState.results.length == 0: Text {
+                    text: TorrentsState.empty-text;
+                    color: Theme.text-3;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+    }
+}

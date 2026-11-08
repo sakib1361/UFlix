@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Builds the bundled Linux libmpv into UFlix.Cross/runtimes/linux-x64/native/ (the Linux counterpart of fetch-windows.sh:
+# Builds the bundled Linux libmpv into runtimes/linux-x64/native/ (the Linux counterpart of fetch-windows.sh:
 # upstream mpv ships no Linux binaries). Everything is built inside an Ubuntu 24.04 rootfs run rootless with bubblewrap, so the
 # result runs on Ubuntu 24.04+ (glibc 2.39). Needs bwrap, curl, tar; no root, podman or docker.
 #
-# libmpv 0.41 (GPL: X11 --wid output needs -Dgpl=true) + a playback-only shared FFmpeg 7.1. Every library in the dependency
+# Zero-copy hardware decoding through mpv's OpenGL render API: nvdec (CUDA interop) on NVIDIA, VA-API (EGL dma-buf,
+# Wayland/DRM/X11 displays) on Intel/AMD. libmpv 0.41 (GPL: X11 --wid output needs -Dgpl=true) + a playback-only shared FFmpeg 7.1. Every library in the dependency
 # closure is bundled next to libmpv.so.2 (RUNPATH=$ORIGIN) unless its package is on BOTH the stock Ubuntu 24.04 and 26.04
 # desktop images (X11, Vulkan loader, EGL, audio, fontconfig/freetype/harfbuzz, OpenSSL, ...), which are left to the system.
 set -euo pipefail
@@ -16,7 +17,7 @@ FFMPEG_TAG="n7.1.2"
 VKHEADERS_TAG="v1.3.290"   # FFmpeg 7.1 Vulkan hwdec needs >= 1.3.277 headers; 24.04 has 1.3.275 (headers only, the loader is the system's)
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-DEST="$ROOT/UFlix.Cross/runtimes/linux-x64/native"
+DEST="$ROOT/runtimes/linux-x64/native"
 WORK="${WORK:-$ROOT/out/mpv-linux}"
 RFS="$WORK/rootfs"
 
@@ -38,7 +39,8 @@ if [ ! -e "$RFS/.ready" ]; then
          apt-get install -y -q --no-install-recommends build-essential meson ninja-build pkg-config git ca-certificates \
              patchelf nasm python3 libdav1d-dev libva-dev libvulkan-dev libssl-dev zlib1g-dev libbz2-dev \
              libass-dev libplacebo-dev liblcms2-dev libx11-dev libxext-dev libxrandr-dev libxpresent-dev libxss-dev \
-             libxinerama-dev libxfixes-dev libegl-dev libgl-dev libasound2-dev libpulse-dev libpipewire-0.3-dev'
+             libxinerama-dev libxfixes-dev libegl-dev libgl-dev libasound2-dev libpulse-dev libpipewire-0.3-dev \
+             libdrm-dev libwayland-dev wayland-protocols libxkbcommon-dev libdisplay-info-dev'
     touch "$RFS/.ready"
 fi
 
@@ -46,6 +48,10 @@ run "cd /root
      [ -d vkh ] || git clone -q --depth 1 -b $VKHEADERS_TAG https://github.com/KhronosGroup/Vulkan-Headers.git vkh
      [ -d ffmpeg ] || git clone -q --depth 1 -b $FFMPEG_TAG https://git.ffmpeg.org/ffmpeg.git ffmpeg
      [ -d mpv ] || git clone -q --depth 1 -b $MPV_TAG https://github.com/mpv-player/mpv.git mpv
+
+     # NVIDIA codec headers (MIT, compile-time only): FFmpeg loads libcuda/libnvcuvid from the user's driver at runtime
+     [ -d nvh ] || git clone -q --depth 1 -b n12.2.72.0 https://github.com/FFmpeg/nv-codec-headers.git nvh
+     make -C nvh install PREFIX=/usr >/dev/null
 
      cd /root/ffmpeg
      ./configure --prefix=/opt/ff --extra-cflags=-I/root/vkh/include --enable-shared --disable-static --enable-pic \
@@ -58,9 +64,9 @@ run "cd /root
 
      cd /root/mpv && rm -rf build
      PKG_CONFIG_PATH=/opt/ff/lib/pkgconfig meson setup build --buildtype=release -Dc_args=-I/root/vkh/include \
-         -Dlibmpv=true -Dcplayer=false -Dgpl=true -Dx11=enabled -Dwayland=disabled -Dvulkan=enabled -Degl-x11=enabled \
-         -Dvaapi=enabled -Dvaapi-x11=enabled -Dvaapi-drm=disabled -Dvaapi-wayland=disabled -Ddrm=disabled -Dgbm=disabled \
-         -Dvdpau=disabled -Dxv=disabled -Dpulse=enabled -Dpipewire=enabled -Dalsa=enabled -Djack=disabled -Dopenal=disabled \
+         -Dlibmpv=true -Dcplayer=false -Dgpl=true -Dx11=enabled -Dwayland=enabled -Dvulkan=enabled -Degl-x11=enabled \
+         -Dvaapi=enabled -Dvaapi-x11=enabled -Dvaapi-drm=enabled -Dvaapi-wayland=enabled -Ddrm=enabled -Dgbm=disabled \
+         -Dcuda-hwaccel=enabled -Dcuda-interop=enabled -Dvdpau=disabled -Dxv=disabled -Dpulse=enabled -Dpipewire=enabled -Dalsa=enabled -Djack=disabled -Dopenal=disabled \
          -Dsndio=disabled -Dsdl2-audio=disabled -Dsdl2-video=disabled -Dsdl2-gamepad=disabled -Dlua=disabled \
          -Djavascript=disabled -Dlibarchive=disabled -Dcdda=disabled -Ddvdnav=disabled -Dlibbluray=disabled -Ddvbin=disabled \
          -Dcaca=disabled -Dsixel=disabled -Djpeg=disabled -Dzimg=disabled -Duchardet=disabled -Drubberband=disabled \

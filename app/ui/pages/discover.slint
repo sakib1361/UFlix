@@ -1,0 +1,80 @@
+// Discover: one catalogue (popular, top seeded or a genre) of movies or shows as a grid that pages in as it scrolls.
+
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { Card, CardGrid, Chip, ChipStrip, Busy } from "../widgets.slint";
+
+export global DiscoverState {
+    in property <int> content; // 0 movies, 1 shows
+    in property <[string]> categories;
+    in property <int> category;
+    in property <[Card]> cards;
+    in property <bool> loading;
+    callback select-content(int);
+    callback select-category(int);
+    callback open(int);
+    callback near-end();
+}
+
+export component DiscoverPage inherits Rectangle {
+    background: Theme.bg;
+    VerticalLayout {
+        padding: Theme.page-padding;
+        padding-bottom: 0;
+        spacing: Theme.gap-m;
+        HorizontalLayout {
+            spacing: Theme.gap;
+            Text {
+                text: "Discover";
+                color: Theme.text;
+                font-size: Theme.font-display;
+                font-weight: 800;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Chip {
+                text: "Movies";
+                has-icon: true;
+                icon: Icons.movie;
+                selected: DiscoverState.content == 0;
+                y: (parent.height - self.height) / 2;
+                clicked => { DiscoverState.select-content(0); }
+            }
+            Chip {
+                text: "Shows";
+                has-icon: true;
+                icon: Icons.tv;
+                selected: DiscoverState.content == 1;
+                y: (parent.height - self.height) / 2;
+                clicked => { DiscoverState.select-content(1); }
+            }
+        }
+        ChipStrip {
+            items: DiscoverState.categories;
+            selected: DiscoverState.category;
+            select(i) => { DiscoverState.select-category(i); }
+        }
+        ScrollView {
+            vertical-stretch: 1;
+            changed content-y => {
+                if (-self.content-y + self.visible-height * 2 > self.content-height) { DiscoverState.near-end(); }
+            }
+            VerticalLayout {
+                padding-top: Theme.gap;
+                padding-bottom: Theme.page-padding;
+                padding-right: Theme.gap;
+                spacing: Theme.gap;
+                CardGrid {
+                    card-width: 156px;
+                    image-height: 234px;
+                    cards: DiscoverState.cards;
+                    open(i) => { DiscoverState.open(i); }
+                }
+                if DiscoverState.loading: Busy {
+                    height: 48px;
+                }
+            }
+        }
+    }
+}

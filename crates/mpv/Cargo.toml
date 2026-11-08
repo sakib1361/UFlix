@@ -1,0 +1,11 @@
+[package]
+name = "mpv"
+description = "UI-free libmpv binding: player, OpenGL render context, stream callbacks (loads the bundled libmpv at runtime)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+libloading.workspace = true
+serde.workspace = true
+serde_json.workspace = true

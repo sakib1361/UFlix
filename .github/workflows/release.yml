@@ -1,7 +1,8 @@
 name: Release
 
 # Bump the VERSION file on master/main to publish: builds both OSes and creates the GitHub release vX.Y.Z with the
-# installers and the Velopack feed files the app's updater reads. A version that is already released is skipped.
+# AppImage, the Windows installer and SHA256SUMS (the app's updater reads the latest release and checks the sums).
+# A version that is already released is skipped.
 on:
   push:
     branches: [master, main]
@@ -64,6 +65,9 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
 
       - name: Create GitHub release
         env:

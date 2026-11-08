@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Native libraries (libmpv, tsdl) are not in git: they are the assets of a prerelease in this repo, pinned in natives.lock.
+# The native library (libmpv) are not in git: they are the assets of a prerelease in this repo, pinned in natives.lock.
 #   Native/natives.sh fetch [rid]   download the pinned set, check its sha256, unpack it into the runtimes/ folders
 #   Native/natives.sh pack [rid]    pack the local runtimes/ folders into out/natives/natives-<rid>.tar.gz (a new set)
 # rid: linux-x64 or win-x64, default this machine's. Runs on Linux and in Git Bash on Windows.
@@ -20,7 +20,7 @@ if [ -z "$rid" ]; then
 fi
 case $rid in linux-x64|win-x64) ;; *) die "unknown rid $rid (linux-x64 or win-x64)" ;; esac
 
-dirs=("UFlix.Cross/runtimes/$rid/native" "Engines/NativeRunner/runtimes/$rid/native")
+dirs=("runtimes/$rid/native")
 asset="natives-$rid.tar.gz"
 shavar="SHA256_${rid//-/_}"
 

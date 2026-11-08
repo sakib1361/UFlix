@@ -1,10 +1,7 @@
 name: Set up UFlix build
-description: Installs .NET 10, restores the pinned dotnet tools (vpk), caches NuGet packages and writes secrets.env from the given API keys.
+description: Installs the Rust toolchain (and Linux build packages), caches cargo and writes secrets.env from the given API keys.
 
 inputs:
-  dotnet-version:
-    description: .NET SDK version
-    default: 10.0.x
   tmdb-api-key:
     description: UFLIX_TMDB_API_KEY
     default: ''
@@ -24,21 +21,17 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-dotnet@v6
-      with:
-        dotnet-version: ${{ inputs.dotnet-version }}
+    - uses: dtolnay/rust-toolchain@stable
 
-    - uses: actions/cache@v6
-      with:
-        path: ~/.nuget/packages
-        key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'dotnet-tools.json') }}
-        restore-keys: nuget-${{ runner.os }}-
+    - uses: Swatinem/rust-cache@v2
 
-    - name: Restore dotnet tools
+    # Slint's winit/femtovg backend links fontconfig and xkbcommon
+    - name: Linux build packages
+      if: runner.os == 'Linux'
       shell: bash
-      run: dotnet tool restore
+      run: sudo apt-get update -q && sudo apt-get install -y -q libfontconfig1-dev libxkbcommon-dev
 
-    # secrets.env is git-ignored and compiled into UFlix.Engine.dll (see secrets.env.example)
+    # secrets.env is git-ignored and compiled into the app by crates/engine/build.rs (see secrets.env.example)
     - name: Write secrets.env
       shell: bash
       env:

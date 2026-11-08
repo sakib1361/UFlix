@@ -1,0 +1,74 @@
+// Live TV: channels from the M3U playlists in Settings, filterable by name.
+
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { Card, CardGrid, SearchField, IconButton, Busy } from "../widgets.slint";
+
+export global TvState {
+    in property <[Card]> channels;
+    in property <int> total;
+    in property <bool> loading;
+    in-out property <string> filter;
+    callback filter-edited(string);
+    callback open(int);
+    callback refresh();
+}
+
+export component TvPage inherits Rectangle {
+    background: Theme.bg;
+    VerticalLayout {
+        padding: Theme.page-padding;
+        padding-bottom: 0;
+        spacing: Theme.gap-l;
+        HorizontalLayout {
+            spacing: Theme.gap;
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: "Live TV";
+                    color: Theme.text;
+                    font-size: Theme.font-display;
+                    font-weight: 800;
+                }
+                Text {
+                    text: TvState.loading ? "Loading channels…" : TvState.channels.length + " of " + TvState.total + " channels";
+                    color: Theme.text-3;
+                }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            SearchField {
+                width: 340px;
+                y: (parent.height - self.height) / 2;
+                placeholder: "Filter channels";
+                text <=> TvState.filter;
+                edited(t) => { TvState.filter-edited(t); }
+            }
+            IconButton {
+                icon: Icons.refresh;
+                tooltip: "Reload the playlists";
+                y: (parent.height - self.height) / 2;
+                clicked => { TvState.refresh(); }
+            }
+        }
+        ScrollView {
+            vertical-stretch: 1;
+            VerticalLayout {
+                padding-bottom: Theme.page-padding;
+                padding-right: Theme.gap;
+                if TvState.loading: Busy {
+                    height: 64px;
+                }
+                CardGrid {
+                    cards: TvState.channels;
+                    card-width: 168px;
+                    image-height: 112px;
+                    spacing: Theme.gap-m;
+                    contain: true;
+                    placeholder: Icons.live-tv;
+                    open(i) => { TvState.open(i); }
+                }
+            }
+        }
+    }
+}

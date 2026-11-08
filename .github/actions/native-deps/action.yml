@@ -1,6 +1,6 @@
 name: UFlix native libraries
 description: >
-  Downloads the native set pinned in Native/natives.lock (libmpv + tsdl, the assets of this repo's natives-N prerelease),
+  Downloads the native set pinned in Native/natives.lock (libmpv, the assets of this repo's natives-N prerelease),
   checks its sha256 and unpacks it into the runtimes/ folders. The set itself is made by the Natives workflow.
 
 runs:

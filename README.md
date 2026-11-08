@@ -1,138 +1,141 @@
 # UFlix
 
-A lightweight desktop media player and library for **Windows and Linux**. You can play local files, torrents (streamed while they download), YouTube, IPTV and web streams, and browse movies and shows through TMDB. Everything runs in one native app with no embedded web browser.
+A lightweight desktop media player and library for **Windows and Linux**. Play local files, torrents (streamed while they
+download), YouTube, IPTV and web streams, and browse movies and shows through TMDB, all in one native app with no
+embedded web browser.
 
-UFlix is built with [Uno Platform](https://platform.uno/) (WinUI XAML) and uses [mpv](https://mpv.io/) for playback, with hardware decoding on every platform.
+UFlix is written in **Rust** with a [Slint](https://slint.dev/) interface and plays everything with
+[mpv](https://mpv.io/). mpv draws the video straight into the app's OpenGL frame with zero-copy hardware decoding, and
+the controls are drawn on top of it in the same frame, so overlays stay translucent and cheap.
 
-> **Status:** in active development. Windows 10/11 (native WinAppSDK) and Linux (X11/XWayland, Ubuntu 24.04+ or equivalent) are both supported.
+> **Status:** in active development. Linux (Wayland and X11, Ubuntu 24.04+ or equivalent) and Windows 10/11.
 
 ## Screenshots
 
 | Home | Search, with Movies and Shows tabs |
 |---|---|
-| ![Home page with popular movies and shows from TMDB](screenshots/home.jpg) | ![Search suggestions split into Movies and Shows tabs](screenshots/search.jpg) |
-| **Player** | **…with the info panel** |
-| ![Big Buck Bunny playing in the UFlix player](screenshots/player.jpg) | ![Player info panel: codecs, resolution, frame rate and hardware decoding](screenshots/player-info.jpg) |
+| ![Home page with rows of popular movies and shows](screenshots/home.jpg) | ![Search results split into Movies and Shows tabs](screenshots/search-movies.jpg) |
+| **Discover** | **A genre** |
+| ![Discover: popular movies as a poster grid](screenshots/discover-movies.jpg) | ![Discover: one genre of shows](screenshots/discover-genre.jpg) |
+| **A movie: details, cast and sources by quality** | **A show: seasons, episodes and sources** |
+| ![Movie dialog with cast and torrent sources grouped by quality](screenshots/movie.jpg) | ![Show dialog with episodes and their sources](screenshots/show-episode.jpg) |
+| **YouTube** | **A YouTube channel** |
+| ![YouTube home: topics and a For you feed](screenshots/youtube.jpg) | ![A YouTube channel's uploads](screenshots/youtube-channel.jpg) |
+| **Live TV** | **Torrents: search and downloads** |
+| ![Live TV channels from M3U playlists](screenshots/tv.jpg) | ![Torrent search results with Play and Download](screenshots/torrents-search.jpg) |
+| **Player** | **Advanced controls: speed and picture** |
+| ![The player with translucent controls over the video](screenshots/player-controls.jpg) | ![Advanced controls: speed, brightness, contrast, saturation, gamma](screenshots/player-advanced.jpg) |
+| **Info panel** | **YouTube in the player, with Up next** |
+| ![Player info: codecs, resolution, hardware decoder, cache](screenshots/player-info.jpg) | ![A YouTube video with details and Up next](screenshots/player-youtube.jpg) |
+| **Subtitles menu** | **Continue watching** |
+| ![Subtitles menu: tracks, captions, online search, delay](screenshots/player-subtitles.jpg) | ![Home with Continue watching](screenshots/home-continue.jpg) |
+| **Settings** | **Download with yt-dlp** |
+| ![Settings: player tab](screenshots/settings-player.jpg) | ![Download dialog with formats](screenshots/download.jpg) |
 
-*Player screenshots: [Big Buck Bunny](https://peach.blender.org/) © 2008 Blender Foundation, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), streamed from the [Internet Archive](https://archive.org/details/BigBuckBunnyFULLHD60FPS).*
+More in [screenshots/](screenshots/). *Player screenshots: [Big Buck Bunny](https://peach.blender.org/) © 2008 Blender
+Foundation, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), streamed from the
+[Internet Archive](https://archive.org/details/BigBuckBunny_124) and YouTube.*
 
 ## Download
 
 Get the latest version from [Releases](../../releases/latest):
 
 - **Windows:** `UFlix-win-Setup.exe` installs per user, with no admin rights needed.
-- **Linux:** `UFlix.AppImage`. Make it executable (`chmod +x UFlix.AppImage`) and run it.
+- **Linux:** `UFlix-x86_64.AppImage`. Make it executable (`chmod +x UFlix-x86_64.AppImage`) and run it.
 
-Both update themselves. UFlix checks for a new version once a day, or when you use **Settings → Updates → Check now**.
+Both update themselves: UFlix checks for a new version once a day, or when you use **Settings → Updates → Check now**.
+Downloads are checked against the release's `SHA256SUMS`.
 
 ## Features
 
-- **Local files**: picks up subtitles next to the video or in `Subs/`, and makes thumbnails for your library
-- **Torrents**: plays magnet links while they download, using a native libtorrent engine that pauses playback before the buffer runs out
-- **YouTube**: plays and downloads through yt-dlp / YoutubeExplode, with a quality picker
-- **IPTV and web streams**
-- **Discover**: movie and TV metadata from TMDB, plus a watchlist
-- **Subtitles**: searches OpenSubtitles and SubDL, and lets you adjust subtitle delay, font, size and colour
-- **Low resource use**: hardware decoding (VA-API/Vulkan/D3D11), no web engine, no timers running while the app is idle
+- **Local files:** subtitles next to the video or in `Subs/` are picked up; "Continue watching" shows a frame of the video
+- **Torrents:** magnet links and `.torrent` files play while they download (pure-Rust engine, librqbit); multi-file
+  torrents list their files in the player; whole torrents can be downloaded and seeded
+- **YouTube:** home feed, search with filters, channels, playlists, Up next with autoplay, quality and caption menus,
+  downloads through yt-dlp
+- **IPTV and web streams** from M3U playlists or any link
+- **Discover:** movies and shows from TMDB by popularity, seeds or genre, with cast, seasons and episodes
+- **Subtitles:** online search (OpenSubtitles, SubDL), delay, font, size and colour
+- **Advanced controls:** playback speed, plus brightness, contrast, saturation and gamma for dark films (saved, one-click
+  reset)
+- **Low resource use:** zero-copy hardware decoding (NVDEC on NVIDIA, VA-API on Intel/AMD, D3D11 on Windows), no web
+  engine, nothing ticking while the app is idle
+
+Keyboard in the player: Space play/pause · ←/→ ±10 s · ↑/↓ volume · M mute · F fullscreen · T side panel · I info ·
+Z/X subtitle delay · N next · Esc back.
 
 ## Building
 
-Requirements: the [.NET 10 SDK](https://dotnet.microsoft.com/download). On Linux you also need an X11 session or XWayland.
+Requirements: Rust (stable) and, on Linux, `libfontconfig1-dev` and `libxkbcommon-dev`.
 
 ```bash
 git clone <repo-url> && cd UFlix
-
-# Linux (or any OS): the Skia/X11 desktop head
-dotnet run --project UFlix.Cross/UFlix.Cross.csproj -f net10.0-desktop
-
-# open a file directly
-dotnet run --project UFlix.Cross/UFlix.Cross.csproj -f net10.0-desktop -- /path/to/video.mkv
+Native/natives.sh fetch            # the bundled libmpv (once per clone)
+cp secrets.env.example secrets.env # API keys: TMDB, OpenSubtitles, SubDL (optional, compiled in)
+cargo run --release                # or: cargo run --release -- /path/to/video.mkv
 ```
 
-On Windows, the plain .NET SDK also builds the native WinAppSDK head (no Visual Studio needed):
-
-```powershell
-dotnet build UFlix.Cross\UFlix.Cross.csproj -f net10.0-windows10.0.26100
-```
-
-### Windows installer
-
-```powershell
-UFlix.Cross\Platforms\Windows\package-windows.ps1 -Version 1.0.0   # → out\windows\UFlix-win-Setup.exe
-```
-
-The installer is built with [Velopack](https://velopack.io). It installs per-user (no admin rights), adds Start menu and desktop shortcuts and an uninstall entry, and bundles the .NET runtime, the Windows App SDK and libmpv.
-
-### Linux package
+### Packages
 
 ```bash
-UFlix.Cross/Platforms/Desktop/package-linux.sh   # → out/linux/UFlix.AppImage
+packaging/linux/package.sh                       # → out/linux/UFlix-x86_64.AppImage
+packaging\windows\package.ps1 -Version 1.0.0     # → out\windows\UFlix-win-Setup.exe (Inno Setup 6)
 ```
 
-The package includes the .NET runtime and its own libmpv, so it doesn't depend on the mpv version your distro ships. It targets Ubuntu 24.04+ or an equivalent distro.
+Releases are built by CI: bump `VERSION` on master and `.github/workflows/release.yml` builds both OSes and publishes
+`vX.Y.Z` with the installers and `SHA256SUMS`.
 
-### Native components
+### Native library
 
-The native libraries (libmpv, tsdl) are not in git. They are mirrored as the assets of a `natives-N` prerelease in this repo, pinned by `Native/natives.lock` (tag + sha256 per OS). `Native/natives.sh fetch` downloads and checks the pinned set (CI does this on every build); the **Natives** workflow (`.github/workflows/natives.yml`, run by hand) builds Linux libmpv and tsdl from source, fetches the newest Windows libmpv, publishes a new set and commits the new pin. Each set carries a `BUILDINFO.txt` per library with its exact source version and build options.
-
-After cloning, get them with:
-
-```bash
-Native/natives.sh fetch        # this OS; Git Bash on Windows
-```
-
-To rebuild one yourself (then `Native/natives.sh pack` bundles your copies into a new set):
-
-| Component | Script |
-|---|---|
-| libmpv (Linux) | `Native/mpv/build-linux.sh` builds mpv and a playback-only FFmpeg from source |
-| libmpv (Windows) | `Native/mpv/fetch-windows.sh` downloads the newest LGPL build from zhongfly/mpv-winbuild (it keeps only about a month of builds, hence the mirror) |
-| tsdl (libtorrent wrapper) | `Native/build-linux.sh`, `Native/build-windows.ps1` (see [Native/readme.md](Native/readme.md)) |
+libmpv is the only native library and is never taken from the system. It isn't in git: it is mirrored as the assets of
+a `natives-N` prerelease pinned by `Native/natives.lock`; `Native/natives.sh fetch` downloads and checks it. The
+**Natives** workflow rebuilds the set: the Linux libmpv from source (mpv 0.41 + FFmpeg 7.1 with NVDEC and VA-API
+zero-copy for the OpenGL render API, see [Native/readme.md](Native/readme.md)) and the newest Windows LGPL build.
 
 ### Tests
 
 ```bash
-dotnet run --project Engines/MpvSharp.Smoke -- /path/to/clip-with-audio.mkv   # player checks
-dotnet run --project Engines/NativeRunner.Smoke                               # torrent engine checks
+cargo test                 # parsers and other unit tests
+cargo clippy --all-targets # lints
 ```
+
+`UFLIX_TOUR=<folder>` makes the app walk all its screens and save screenshots (this README's images come from it; use a
+scratch `XDG_DATA_HOME`).
 
 ## Project layout
 
 ```
-UFlix.Cross/        the app: pages, player, services (Uno single project, Windows + Linux heads)
-Engines/
-  UFlix.Engine/     models, TMDB, LiteDB storage, media providers, subtitle search
-  MpvSharp/         UI-independent libmpv binding and player
-  NativeRunner/     .NET binding for the native torrent library + seekable torrent stream
-Native/
-  TorrentSharp/     tsdl: a C API over libtorrent (C++, CMake + vcpkg)
-  mpv/              scripts that produce the bundled libmpv
-doc/                development reference (architecture, decisions, known issues)
+app/                the UFlix app: Slint UI (ui/), page and dialog controllers, the player, services
+crates/
+  engine/           UI-free core: SQLite store, settings, TMDB, catalogues, torrent and subtitle search, YouTube, IPTV
+  mpv/              libmpv binding: player, OpenGL render context, stream callbacks
+  torrent/          torrent engine on librqbit with a blocking, cancellable stream for the player
+Native/mpv/         scripts that produce the bundled libmpv
+packaging/          AppImage and Windows installer scripts
 ```
 
-For how the pieces fit together, see [doc/CrossPlatformDev.md](doc/CrossPlatformDev.md).
-
-## Contributing
-
-Issues and pull requests are welcome. Before you open a PR, make sure `dotnet build UFlix.Cross/UFlix.Cross.csproj -f net10.0-desktop` passes. If you changed the player or the torrent engine, run the matching smoke test as well.
+How it fits together: [doc/Development.md](doc/Development.md).
 
 ## License
 
-UFlix is free software: you can redistribute it and/or modify it under the terms of the **GNU General Public License, version 3 or (at your option) any later version**. See [LICENSE](LICENSE).
+UFlix is free software: you can redistribute it and/or modify it under the terms of the **GNU General Public License,
+version 3 or (at your option) any later version**. See [LICENSE](LICENSE).
 
-The whole project is GPL because the Linux build bundles a GPL build of libmpv, which is needed for X11 video output. Bundled and linked third-party components keep their own licences:
+Bundled and linked third-party components keep their own licences:
 
 | Component | Licence |
 |---|---|
 | mpv / libmpv, Linux build | GPL-2.0-or-later |
 | mpv / libmpv, Windows build | LGPL-2.1-or-later |
 | FFmpeg, bundled on Linux | LGPL-3.0-or-later |
-| libtorrent | BSD-3-Clause |
-| Uno Platform | Apache-2.0 |
-| NuGet dependencies (LiteDB, TMDbLib, YoutubeDLSharp, YoutubeExplode, AngleSharp, Velopack, HtmlAgilityPack, …) | their respective licences |
+| Slint | GPL-3.0 (used under GPLv3) |
+| librqbit | Apache-2.0 |
+| rustypipe | GPL-3.0 |
+| other crates (tokio, reqwest, rusqlite, serde, …) | their respective licences (MIT / Apache-2.0 and similar) |
 
 The source for each bundled native binary is identified in the `BUILDINFO.txt` next to it.
 
 ## Disclaimer
 
-UFlix is a player. It does not host, index or provide any content. You are responsible for making sure that what you stream or download is legal where you live.
+UFlix is a player. It does not host, index or provide any content. You are responsible for making sure that what you
+stream or download is legal where you live.

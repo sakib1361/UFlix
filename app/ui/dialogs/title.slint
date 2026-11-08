@@ -1,0 +1,492 @@
+// The movie / show dialog: details, cast or seasons and episodes, and the torrent picker.
+
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { Card, Button, ButtonKind, Chip, ChipStrip, IconButton, Busy, DialogFrame } from "../widgets.slint";
+
+export struct TorrentRow {
+    title: string,
+    meta: string,
+    is-local: bool,
+}
+
+export global TitleState {
+    in-out property <bool> open;
+    in property <bool> is-show;
+    in property <string> title;
+    in property <string> meta;
+    in property <string> rating;
+    in property <string> overview;
+    in property <image> poster;
+    in property <image> backdrop;
+    in property <[Card]> cast;
+    in property <string> resume-text;
+    // shows
+    in property <[string]> seasons;
+    in property <int> season;
+    in property <[Card]> episodes;
+    in property <int> episode: -1;
+    in property <bool> episodes-loading;
+    // torrents
+    in property <[string]> providers;
+    in property <int> provider;
+    in property <[string]> qualities;
+    in property <int> quality;
+    in property <[TorrentRow]> torrents;
+    in property <bool> searching;
+    in property <string> empty-text;
+    in-out property <string> custom-url;
+    in-out property <int> left-tab; // 0 episodes, 1 cast (shows)
+    callback close();
+    callback resume();
+    callback select-season(int);
+    callback select-episode(int);
+    callback full-season();
+    callback select-provider(int);
+    callback refresh();
+    callback select-quality(int);
+    callback play(int);
+    callback download(int);
+    callback open-custom();
+}
+
+component CastList inherits ScrollView {
+    in property <[Card]> cast;
+    VerticalLayout {
+        spacing: 4px;
+        for c in root.cast: HorizontalLayout {
+            spacing: 12px;
+            padding: 4px;
+            Rectangle {
+                width: 44px;
+                height: 44px;
+                border-radius: 22px;
+                clip: true;
+                background: Theme.surface-3;
+                Image {
+                    source: Icons.person;
+                    width: 24px;
+                    colorize: Theme.text-3;
+                }
+                Image {
+                    source: c.image;
+                    width: 100%;
+                    height: 100%;
+                    image-fit: cover;
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: c.title;
+                    color: Theme.text;
+                    font-weight: 600;
+                    overflow: elide;
+                }
+                Text {
+                    text: c.subtitle;
+                    color: Theme.text-3;
+                    font-size: Theme.font-small;
+                    overflow: elide;
+                }
+            }
+        }
+    }
+}
+
+component EpisodeItem inherits Rectangle {
+    in property <Card> card;
+    in property <bool> selected;
+    callback clicked;
+    height: 96px;
+    border-radius: Theme.radius;
+    background: root.selected ? Theme.accent-soft : ta.has-hover ? Theme.surface-2 : transparent;
+    border-width: root.selected ? 1px : 0px;
+    border-color: Theme.accent;
+    HorizontalLayout {
+        padding: 8px;
+        spacing: 12px;
+        Rectangle {
+            width: 128px;
+            border-radius: Theme.radius-s;
+            clip: true;
+            background: Theme.surface-3;
+            Image {
+                source: Icons.tv;
+                width: 28px;
+                colorize: Theme.text-3;
+            }
+            Image {
+                source: root.card.image;
+                width: 100%;
+                height: 100%;
+                image-fit: cover;
+            }
+            Rectangle {
+                x: 6px;
+                y: parent.height - self.height - 6px;
+                width: ep.preferred-width + 10px;
+                height: 20px;
+                border-radius: 4px;
+                background: #000000c0;
+                ep := Text {
+                    text: root.card.badge;
+                    color: white;
+                    font-size: 11px;
+                    font-weight: 700;
+                }
+            }
+        }
+        VerticalLayout {
+            spacing: 2px;
+            Text {
+                text: root.card.title;
+                color: Theme.text;
+                font-weight: 600;
+                overflow: elide;
+            }
+            Text {
+                text: root.card.subtitle;
+                color: Theme.text-3;
+                font-size: Theme.font-small;
+            }
+            Text {
+                text: root.card.detail;
+                color: Theme.text-2;
+                font-size: Theme.font-small;
+                wrap: word-wrap;
+                overflow: elide;
+                height: 34px;
+            }
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component TorrentItem inherits Rectangle {
+    in property <TorrentRow> item;
+    callback play();
+    callback download();
+    height: 64px;
+    border-radius: Theme.radius;
+    background: ta.has-hover ? Theme.surface-2 : transparent;
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.play(); }
+    }
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 8px;
+        spacing: 12px;
+        Image {
+            source: root.item.is-local ? Icons.folder-open : Icons.magnet;
+            width: 20px;
+            colorize: Theme.text-3;
+            y: (parent.height - self.height) / 2;
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 3px;
+            Text {
+                text: root.item.title;
+                color: Theme.text;
+                overflow: elide;
+            }
+            Text {
+                text: root.item.meta;
+                color: Theme.text-3;
+                font-size: Theme.font-small;
+            }
+        }
+        if !root.item.is-local: IconButton {
+            icon: Icons.download;
+            tooltip: "Download";
+            y: (parent.height - self.height) / 2;
+            clicked => { root.download(); }
+        }
+        IconButton {
+            icon: Icons.play;
+            tooltip: "Play";
+            tint: white;
+            background: Theme.accent;
+            y: (parent.height - self.height) / 2;
+            clicked => { root.play(); }
+        }
+    }
+}
+
+export component TitleDialog inherits DialogFrame {
+    card-width: 1180px;
+    card-height: 820px;
+    show-header: false;
+    close => { TitleState.close(); }
+    // the header shrinks on short windows so the episode and source lists keep their room
+    property <length> hero-height: Math.clamp(Math.min(self.card-height, self.height - 48px) * 0.36, 210px, 300px);
+
+    // Hero: backdrop, poster and details.
+    Rectangle {
+        height: root.hero-height;
+        clip: true;
+        Image {
+            source: TitleState.backdrop;
+            width: 100%;
+            height: 100%;
+            image-fit: cover;
+            opacity: 0.55;
+        }
+        Rectangle {
+            background: @linear-gradient(90deg, Theme.surface 18%, #1a1a1dcc 55%, #1a1a1d40 100%);
+        }
+        Rectangle {
+            background: @linear-gradient(0deg, Theme.surface 0%, #1a1a1d00 45%);
+        }
+        HorizontalLayout {
+            padding: Theme.gap-l;
+            spacing: Theme.gap-l;
+            Rectangle {
+                width: 168px;
+                border-radius: Theme.radius;
+                clip: true;
+                background: Theme.surface-3;
+                drop-shadow-blur: 24px;
+                drop-shadow-color: #000000c0;
+                Image {
+                    source: TitleState.poster;
+                    width: 100%;
+                    height: 100%;
+                    image-fit: cover;
+                }
+            }
+            VerticalLayout {
+                spacing: Theme.gap-s;
+                alignment: start;
+                Text {
+                    text: TitleState.title;
+                    color: Theme.text;
+                    font-size: 32px;
+                    font-weight: 800;
+                    overflow: elide;
+                }
+                HorizontalLayout {
+                    spacing: Theme.gap;
+                    alignment: start;
+                    if TitleState.rating != "": HorizontalLayout {
+                        spacing: 4px;
+                        Image {
+                            source: Icons.star;
+                            width: 16px;
+                            colorize: Theme.warning;
+                            y: (parent.height - self.height) / 2;
+                        }
+                        Text {
+                            text: TitleState.rating;
+                            color: Theme.text;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Text {
+                        text: TitleState.meta;
+                        color: Theme.text-2;
+                        vertical-alignment: center;
+                    }
+                }
+                Text {
+                    text: TitleState.overview;
+                    color: Theme.text-2;
+                    wrap: word-wrap;
+                    overflow: elide;
+                    height: root.hero-height > 260px ? 84px : 42px;
+                }
+                if TitleState.resume-text != "": HorizontalLayout {
+                    alignment: start;
+                    Button {
+                        text: TitleState.resume-text;
+                        has-icon: true;
+                        icon: Icons.play;
+                        clicked => { TitleState.resume(); }
+                    }
+                }
+            }
+        }
+        IconButton {
+            x: parent.width - self.width - 14px;
+            y: 14px;
+            icon: Icons.close;
+            tooltip: "Close";
+            background: #00000080;
+            clicked => { TitleState.close(); }
+        }
+    }
+
+    HorizontalLayout {
+        padding: Theme.gap-l;
+        padding-top: 0;
+        spacing: Theme.gap-l;
+        vertical-stretch: 1;
+
+        // Left: episodes (shows) or cast.
+        VerticalLayout {
+            width: 400px;
+            spacing: Theme.gap;
+            if TitleState.is-show: HorizontalLayout {
+                spacing: Theme.gap-s;
+                Chip {
+                    text: "Episodes";
+                    selected: TitleState.left-tab == 0;
+                    clicked => { TitleState.left-tab = 0; }
+                }
+                Chip {
+                    text: "Cast";
+                    selected: TitleState.left-tab == 1;
+                    clicked => { TitleState.left-tab = 1; }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                if TitleState.left-tab == 0: Button {
+                    text: "Full season";
+                    kind: ButtonKind.tonal;
+                    compact: true;
+                    clicked => { TitleState.full-season(); }
+                }
+            }
+            if !TitleState.is-show: Text {
+                text: "Cast";
+                color: Theme.text;
+                font-size: Theme.font-subtitle;
+                font-weight: 700;
+            }
+            if TitleState.is-show && TitleState.left-tab == 0: ChipStrip {
+                items: TitleState.seasons;
+                selected: TitleState.season;
+                select(i) => { TitleState.select-season(i); }
+            }
+            if TitleState.is-show && TitleState.left-tab == 0: ScrollView {
+                vertical-stretch: 1;
+                VerticalLayout {
+                    spacing: 4px;
+                    if TitleState.episodes-loading: Busy {
+                        height: 48px;
+                    }
+                    for e[i] in TitleState.episodes: EpisodeItem {
+                        card: e;
+                        selected: i == TitleState.episode;
+                        clicked => { TitleState.select-episode(i); }
+                    }
+                }
+            }
+            if !TitleState.is-show || TitleState.left-tab == 1: CastList {
+                vertical-stretch: 1;
+                cast: TitleState.cast;
+            }
+        }
+
+        // Right: torrents.
+        Rectangle {
+            horizontal-stretch: 1;
+            background: Theme.bg;
+            border-radius: Theme.radius-l;
+            VerticalLayout {
+                padding: Theme.gap-m;
+                spacing: Theme.gap;
+                HorizontalLayout {
+                    spacing: Theme.gap-s;
+                    Text {
+                        text: "Sources";
+                        color: Theme.text;
+                        font-size: Theme.font-subtitle;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                    Rectangle { width: Theme.gap-s; }
+                    ChipStrip {
+                        horizontal-stretch: 1;
+                        items: TitleState.providers;
+                        selected: TitleState.provider;
+                        y: (parent.height - self.height) / 2;
+                        select(i) => { TitleState.select-provider(i); }
+                    }
+                    IconButton {
+                        icon: Icons.refresh;
+                        tooltip: "Search again";
+                        clicked => { TitleState.refresh(); }
+                    }
+                }
+                if TitleState.qualities.length > 0: ChipStrip {
+                    items: TitleState.qualities;
+                    selected: TitleState.quality;
+                    select(i) => { TitleState.select-quality(i); }
+                }
+                Rectangle {
+                    vertical-stretch: 1;
+                    ScrollView {
+                        VerticalLayout {
+                            spacing: 2px;
+                            for t[i] in TitleState.torrents: TorrentItem {
+                                item: t;
+                                play => { TitleState.play(i); }
+                                download => { TitleState.download(i); }
+                            }
+                        }
+                    }
+                    if TitleState.searching: Busy {
+                        dot: 10px;
+                    }
+                    if !TitleState.searching && TitleState.torrents.length == 0: Text {
+                        text: TitleState.empty-text;
+                        color: Theme.text-3;
+                        horizontal-alignment: center;
+                        wrap: word-wrap;
+                        width: parent.width - 48px;
+                    }
+                }
+                HorizontalLayout {
+                    spacing: Theme.gap-s;
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 38px;
+                        border-radius: 19px;
+                        background: Theme.surface-2;
+                        border-width: 1px;
+                        border-color: url.has-focus ? Theme.accent : Theme.border;
+                        HorizontalLayout {
+                            padding-left: 14px;
+                            padding-right: 14px;
+                            spacing: 8px;
+                            Image {
+                                source: Icons.link;
+                                width: 18px;
+                                colorize: Theme.text-3;
+                                y: (parent.height - self.height) / 2;
+                            }
+                            Rectangle {
+                                url := TextInput {
+                                    text <=> TitleState.custom-url;
+                                    color: Theme.text;
+                                    single-line: true;
+                                    vertical-alignment: center;
+                                    accepted => { TitleState.open-custom(); }
+                                }
+                                if url.text == "": Text {
+                                    x: 0;
+                                    height: parent.height;
+                                    text: "Paste a magnet, link or file path";
+                                    color: Theme.text-3;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                    Button {
+                        text: "Open";
+                        kind: ButtonKind.tonal;
+                        clicked => { TitleState.open-custom(); }
+                    }
+                }
+            }
+        }
+    }
+}

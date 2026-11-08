@@ -1,7 +1,0 @@
-<Project>
-	<!-- One version for every project: the VERSION file at the repo root. `-p:Version=...` (the package scripts, CI) overrides it. -->
-	<PropertyGroup>
-		<UFlixVersion>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</UFlixVersion>
-		<Version Condition="'$(Version)' == ''">$(UFlixVersion)</Version>
-	</PropertyGroup>
-</Project>

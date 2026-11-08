@@ -1,6 +1,0 @@
-{
-  global:
-    tsdl_*;
-  local:
-    *;
-};

@@ -1,8 +1,9 @@
 name: Natives
 
-# Run by hand (Actions → Natives → Run workflow) to make a new native set: builds Linux libmpv and tsdl for both OSes from
-# source, fetches the newest Windows libmpv, publishes them as the prerelease natives-<run number> and pins it in
-# Native/natives.lock (committed back). App builds only download the pinned set, so run this when mpv, FFmpeg or Native/ change.
+# Run by hand (Actions → Natives → Run workflow) to make a new native set: builds the Linux libmpv from source (nvdec +
+# VA-API zero-copy for the OpenGL render API), fetches the newest Windows libmpv, publishes them as the prerelease
+# natives-<run number> and pins it in Native/natives.lock (committed back). App builds only download the pinned set, so run
+# this when mpv, FFmpeg or Native/ change.
 on:
   workflow_dispatch:
 
@@ -27,16 +28,6 @@ jobs:
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           WORK="$RUNNER_TEMP/mpv-linux" bash Native/mpv/build-linux.sh
 
-      - uses: actions/cache@v6
-        with:
-          path: Native/build/vcpkg-cache
-          key: vcpkg-linux-${{ hashFiles('Native/vcpkg.json', 'Native/triplets/**') }}
-
-      - name: Build tsdl (ubuntu:24.04, the same glibc 2.39 floor as libmpv)
-        run: |
-          mkdir -p Native/build/vcpkg-cache
-          docker run --rm -v "$PWD":/src ubuntu:24.04 bash /src/Native/build-linux.sh
-          sudo chown -R "$(id -u):$(id -g)" Native/build Engines/NativeRunner/runtimes
 
       - name: Pack
         run: bash Native/natives.sh pack linux-x64
@@ -57,24 +48,6 @@ jobs:
         shell: bash
         run: bash Native/mpv/fetch-windows.sh
 
-      - uses: actions/cache@v6
-        with:
-          path: Native/build/vcpkg-cache
-          key: vcpkg-windows-${{ hashFiles('Native/vcpkg.json', 'Native/triplets/**') }}
-
-      - name: Build tsdl
-        shell: pwsh
-        run: |
-          $vcpkg = Join-Path $env:RUNNER_TEMP 'vcpkg'
-          git clone -q https://github.com/microsoft/vcpkg $vcpkg   # full clone: vcpkg.json pins a builtin-baseline commit
-          & "$vcpkg\bootstrap-vcpkg.bat" -disableMetrics
-          if ($LASTEXITCODE) { throw 'vcpkg bootstrap failed' }
-          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-          & "$vs\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-          $env:VCPKG_ROOT = $vcpkg
-          $env:VCPKG_DEFAULT_BINARY_CACHE = Join-Path $env:GITHUB_WORKSPACE 'Native\build\vcpkg-cache'
-          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
-          & (Join-Path $env:GITHUB_WORKSPACE 'Native\build-windows.ps1')
 
       - name: Pack
         shell: bash
@@ -103,7 +76,7 @@ jobs:
           TAG: natives-${{ github.run_number }}
         run: |
           {
-            echo "Native libraries bundled with UFlix (libmpv + tsdl). Not an app release: builds download this set through Native/natives.lock."
+            echo "Native library bundled with UFlix (libmpv). Not an app release: builds download this set through Native/natives.lock."
             for f in dist/natives-*.tar.gz; do
               echo; echo "## $(basename "$f")"; echo; echo "sha256: \`$(sha256sum "$f" | cut -d' ' -f1)\`"
               for b in $(tar -tzf "$f" | grep 'BUILDINFO.txt$'); do echo; echo '```'; tar -xzOf "$f" "$b"; echo '```'; done

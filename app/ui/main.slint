@@ -1,0 +1,192 @@
+// The app shell: sidebar navigation, pages, dialogs, toast and the player overlay.
+
+import { Theme } from "theme.slint";
+import { Icons } from "icons.slint";
+import { Toast, Busy } from "widgets.slint";
+import { HomePage, HomeState, RowData } from "pages/home.slint";
+import { DiscoverPage, DiscoverState } from "pages/discover.slint";
+import { TitleDialog, TitleState, TorrentRow } from "dialogs/title.slint";
+import { PlayerPage, PlayerState, MenuItem, Stat } from "player.slint";
+import { YoutubePage, YoutubeState } from "pages/youtube.slint";
+import { TvPage, TvState } from "pages/tv.slint";
+import { TorrentsPage, TorrentsState, DownloadRow } from "pages/torrents.slint";
+import { SettingsDialog, SettingsState, EngineUrl, OpenDialog, OpenState, DownloadDialog, DownloadState, DownloadJob, SubtitlesDialog, SubtitlesState, SubtitleRow } from "dialogs/misc.slint";
+import { MenuEntry } from "widgets.slint";
+
+export { HomeState, RowData, Theme, DiscoverState, TitleState, TorrentRow, PlayerState, MenuItem, Stat, YoutubeState, MenuEntry, Icons, TvState, TorrentsState, DownloadRow, SettingsState, EngineUrl, OpenState, DownloadState, DownloadJob, SubtitlesState, SubtitleRow }
+
+export enum Page { home, discover, youtube, tv, torrents }
+
+export global Shell {
+    in-out property <Page> page: Page.home;
+    in property <string> toast;
+    in property <bool> busy;
+    in property <string> version;
+    callback navigate(Page);
+    callback open-dialog(string /* "open" | "download" | "settings" */);
+}
+
+component NavItem inherits Rectangle {
+    in property <image> icon;
+    in property <string> text;
+    in property <bool> selected;
+    callback clicked;
+    height: 44px;
+    border-radius: Theme.radius;
+    background: root.selected ? Theme.accent-soft : ta.has-hover ? #ffffff10 : transparent;
+    animate background { duration: Theme.fast; }
+    Rectangle {
+        x: 0;
+        width: 3px;
+        height: root.selected ? 20px : 0px;
+        border-radius: 2px;
+        background: Theme.accent;
+        animate height { duration: Theme.normal; easing: ease-out; }
+    }
+    HorizontalLayout {
+        padding-left: 16px;
+        spacing: 14px;
+        Image {
+            source: root.icon;
+            width: 22px;
+            colorize: root.selected ? Theme.accent-hover : Theme.text-2;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            text: root.text;
+            vertical-alignment: center;
+            color: root.selected ? Theme.text : Theme.text-2;
+            font-size: Theme.font-body + 1px;
+            font-weight: root.selected ? 700 : 500;
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "UFlix";
+    icon: Icons.logo;
+    background: PlayerState.open ? black : Theme.bg;
+    min-width: 960px;
+    min-height: 600px;
+    preferred-width: 1280px;
+    preferred-height: 760px;
+    default-font-size: Theme.font-body;
+
+    HorizontalLayout {
+        visible: !PlayerState.open;
+        // Sidebar
+        Rectangle {
+            width: 228px;
+            background: Theme.sidebar;
+            VerticalLayout {
+                padding: Theme.gap;
+                padding-top: Theme.gap-l;
+                spacing: 4px;
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-bottom: Theme.gap-l;
+                    spacing: 10px;
+                    Image {
+                        source: Icons.logo;
+                        width: 30px;
+                        height: 30px;
+                    }
+                    Text {
+                        text: "UFlix";
+                        color: Theme.text;
+                        font-size: 22px;
+                        font-weight: 800;
+                        vertical-alignment: center;
+                    }
+                }
+                NavItem {
+                    icon: Icons.home;
+                    text: "Home";
+                    selected: Shell.page == Page.home;
+                    clicked => { Shell.navigate(Page.home); }
+                }
+                NavItem {
+                    icon: Icons.discover;
+                    text: "Discover";
+                    selected: Shell.page == Page.discover;
+                    clicked => { Shell.navigate(Page.discover); }
+                }
+                NavItem {
+                    icon: Icons.youtube;
+                    text: "YouTube";
+                    selected: Shell.page == Page.youtube;
+                    clicked => { Shell.navigate(Page.youtube); }
+                }
+                NavItem {
+                    icon: Icons.live-tv;
+                    text: "Live TV";
+                    selected: Shell.page == Page.tv;
+                    clicked => { Shell.navigate(Page.tv); }
+                }
+                NavItem {
+                    icon: Icons.torrents;
+                    text: "Torrents";
+                    selected: Shell.page == Page.torrents;
+                    clicked => { Shell.navigate(Page.torrents); }
+                }
+                Rectangle { vertical-stretch: 1; }
+                NavItem {
+                    icon: Icons.folder-open;
+                    text: "Open";
+                    clicked => { Shell.open-dialog("open"); }
+                }
+                NavItem {
+                    icon: Icons.download;
+                    text: "Download";
+                    clicked => { Shell.open-dialog("download"); }
+                }
+                NavItem {
+                    icon: Icons.settings;
+                    text: "Settings";
+                    clicked => { Shell.open-dialog("settings"); }
+                }
+                Text {
+                    text: Shell.version;
+                    color: Theme.text-3;
+                    font-size: 11px;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+        // Pages
+        Rectangle {
+            horizontal-stretch: 1;
+            if Shell.page == Page.home: HomePage { }
+            if Shell.page == Page.discover: DiscoverPage { }
+            if Shell.page == Page.youtube: YoutubePage { }
+            if Shell.page == Page.tv: TvPage { }
+            if Shell.page == Page.torrents: TorrentsPage { }
+        }
+    }
+
+    if PlayerState.open: player := PlayerPage { }
+
+    if TitleState.open: TitleDialog { }
+    if SettingsState.open: SettingsDialog { }
+    if OpenState.open: OpenDialog { }
+    if DownloadState.open: DownloadDialog { }
+    if SubtitlesState.open: SubtitlesDialog { }
+
+    if Shell.busy: Rectangle {
+        background: #00000060;
+        TouchArea { }
+        Busy {
+            dot: 12px;
+        }
+    }
+
+    if Shell.toast != "": Toast {
+        text: Shell.toast;
+        x: (root.width - self.width) / 2 + 114px;
+        y: root.height - self.height - 32px;
+    }
+}

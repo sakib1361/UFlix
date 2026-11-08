@@ -1,0 +1,664 @@
+// Settings, Open, Download and subtitle-search dialogs.
+
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "../theme.slint";
+import { Icons } from "../icons.slint";
+import { Chip, IconButton, Button, ButtonKind, Busy, Toggle, DialogFrame, Slider } from "../widgets.slint";
+
+/// A labelled single-line text box.
+export component Field inherits VerticalLayout {
+    in property <string> label;
+    in property <string> placeholder;
+    in property <string> hint;
+    in-out property <string> text <=> input.text;
+    callback edited(string);
+    callback accepted(string);
+    spacing: 6px;
+    alignment: start;
+    vertical-stretch: 0;
+    if root.label != "": Text {
+        text: root.label;
+        color: Theme.text-2;
+        font-weight: 600;
+    }
+    Rectangle {
+        height: 40px;
+        border-radius: Theme.radius-s;
+        background: Theme.surface-2;
+        border-width: 1px;
+        border-color: input.has-focus ? Theme.accent : Theme.border;
+        HorizontalLayout {
+            padding-left: 12px;
+            padding-right: 12px;
+            Rectangle {
+                input := TextInput {
+                    color: Theme.text;
+                    single-line: true;
+                    vertical-alignment: center;
+                    edited => { root.edited(self.text); }
+                    accepted => { root.accepted(self.text); }
+                }
+                if input.text == "": Text {
+                    x: 0;
+                    height: parent.height;
+                    text: root.placeholder;
+                    color: Theme.text-3;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+    if root.hint != "": Text {
+        text: root.hint;
+        color: Theme.text-3;
+        font-size: Theme.font-small;
+        wrap: word-wrap;
+    }
+}
+
+component SettingRow inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> hint;
+    spacing: Theme.gap;
+    VerticalLayout {
+        alignment: center;
+        spacing: 2px;
+        Text {
+            text: root.label;
+            color: Theme.text;
+            font-weight: 600;
+        }
+        if root.hint != "": Text {
+            text: root.hint;
+            color: Theme.text-3;
+            font-size: Theme.font-small;
+            wrap: word-wrap;
+        }
+    }
+    Rectangle { horizontal-stretch: 1; }
+    @children
+}
+
+// ------------------------------------------------------------------ settings
+
+export struct EngineUrl {
+    name: string,
+    url: string,
+}
+
+export global SettingsState {
+    in-out property <bool> open;
+    in-out property <int> tab; // 0 player, 1 downloads, 2 torrents, 3 live tv, 4 updates
+    // player
+    in-out property <string> sub-font-size;
+    in-out property <string> sub-color;
+    in-out property <string> sub-font;
+    in property <[string]> subtitle-providers;
+    in-out property <int> subtitle-provider;
+    // downloads
+    in-out property <string> torrent-folder;
+    in-out property <string> youtube-folder;
+    in-out property <string> max-folder-size;
+    in-out property <bool> ytdl-first;
+    // torrents
+    in property <[EngineUrl]> engines;
+    // live tv
+    in-out property <string> tv-links;
+    // updates
+    in property <string> version;
+    in property <string> update-status;
+    in property <bool> update-available;
+    in property <bool> can-update;
+    in property <bool> checking;
+    in property <float> update-progress: -1;
+    in-out property <bool> daily-check;
+    callback close();
+    callback save();
+    callback pick-folder(string /* "torrent" | "youtube" */);
+    callback engine-url-edited(int, string);
+    callback check-updates();
+    callback install-update();
+    callback open-releases();
+}
+
+export component SettingsDialog inherits DialogFrame {
+    title: "Settings";
+    card-width: 860px;
+    card-height: 640px;
+    close => { SettingsState.close(); }
+    HorizontalLayout {
+        padding: Theme.gap-l;
+        padding-top: 0;
+        spacing: Theme.gap-l;
+        vertical-stretch: 1;
+        // tabs
+        VerticalLayout {
+            width: 180px;
+            spacing: 4px;
+            for t[i] in ["Player", "Downloads", "Torrents", "Live TV", "Updates"]: Rectangle {
+                height: 40px;
+                border-radius: Theme.radius-s;
+                background: SettingsState.tab == i ? Theme.accent-soft : tta.has-hover ? #ffffff10 : transparent;
+                Text {
+                    x: 14px;
+                    text: t;
+                    color: SettingsState.tab == i ? Theme.text : Theme.text-2;
+                    font-weight: SettingsState.tab == i ? 700 : 500;
+                    vertical-alignment: center;
+                    height: parent.height;
+                }
+                tta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { SettingsState.tab = i; }
+                }
+            }
+            Rectangle { vertical-stretch: 1; }
+        }
+        ScrollView {
+            horizontal-stretch: 1;
+            VerticalLayout {
+                spacing: Theme.gap-l;
+                padding-right: Theme.gap;
+                alignment: start;
+                if SettingsState.tab == 0: VerticalLayout {
+                    alignment: start;
+                    spacing: Theme.gap-l;
+                    Field {
+                        label: "Subtitle font size";
+                        placeholder: "46";
+                        text <=> SettingsState.sub-font-size;
+                    }
+                    Field {
+                        label: "Subtitle colour";
+                        placeholder: "#FFFFFFFF";
+                        hint: "#AARRGGBB, e.g. #FFFFFF00 for yellow";
+                        text <=> SettingsState.sub-color;
+                    }
+                    Field {
+                        label: "Subtitle font";
+                        placeholder: "Default";
+                        text <=> SettingsState.sub-font;
+                    }
+                    VerticalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: "Subtitle search";
+                            color: Theme.text-2;
+                            font-weight: 600;
+                        }
+                        HorizontalLayout {
+                            spacing: Theme.gap-s;
+                            alignment: start;
+                            for p[i] in SettingsState.subtitle-providers: Chip {
+                                text: p;
+                                selected: SettingsState.subtitle-provider == i;
+                                clicked => { SettingsState.subtitle-provider = i; }
+                            }
+                        }
+                    }
+                    Text {
+                        text: "Brightness, contrast and other picture adjustments are in the player's Advanced controls.";
+                        color: Theme.text-3;
+                        font-size: Theme.font-small;
+                        wrap: word-wrap;
+                    }
+                }
+                if SettingsState.tab == 1: VerticalLayout {
+                    alignment: start;
+                    spacing: Theme.gap-l;
+                    HorizontalLayout {
+                        spacing: Theme.gap-s;
+                        Field {
+                            horizontal-stretch: 1;
+                            label: "Torrent folder";
+                            placeholder: "Default download folder";
+                            text <=> SettingsState.torrent-folder;
+                        }
+                        Button {
+                            text: "Browse";
+                            kind: ButtonKind.tonal;
+                            y: parent.height - self.height - 1px;
+                            clicked => { SettingsState.pick-folder("torrent"); }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: Theme.gap-s;
+                        Field {
+                            horizontal-stretch: 1;
+                            label: "YouTube folder";
+                            placeholder: "Default download folder";
+                            text <=> SettingsState.youtube-folder;
+                        }
+                        Button {
+                            text: "Browse";
+                            kind: ButtonKind.tonal;
+                            y: parent.height - self.height - 1px;
+                            clicked => { SettingsState.pick-folder("youtube"); }
+                        }
+                    }
+                    Field {
+                        label: "Max torrent folder size (GB)";
+                        placeholder: "0";
+                        hint: "0 = no limit. The oldest downloads are deleted at start-up above the limit.";
+                        text <=> SettingsState.max-folder-size;
+                    }
+                    SettingRow {
+                        label: "Use yt-dlp first for YouTube";
+                        hint: "Falls back to the built-in client (and the other way round).";
+                        Toggle {
+                            checked <=> SettingsState.ytdl-first;
+                            y: (parent.height - self.height) / 2;
+                        }
+                    }
+                }
+                if SettingsState.tab == 2: VerticalLayout {
+                    alignment: start;
+                    spacing: Theme.gap-l;
+                    Text {
+                        text: "Search sources. Leave a URL empty for the default; Local folders takes a comma-separated list of folders.";
+                        color: Theme.text-3;
+                        wrap: word-wrap;
+                    }
+                    for e[i] in SettingsState.engines: Field {
+                        label: e.name;
+                        text: e.url;
+                        placeholder: "Default";
+                        edited(t) => { SettingsState.engine-url-edited(i, t); }
+                    }
+                }
+                if SettingsState.tab == 3: VerticalLayout {
+                    alignment: start;
+                    spacing: Theme.gap-l;
+                    Field {
+                        label: "Playlists";
+                        placeholder: "https://iptv-org.github.io/iptv/countries/bd.m3u";
+                        hint: "Comma-separated M3U playlist URLs for Live TV.";
+                        text <=> SettingsState.tv-links;
+                    }
+                }
+                if SettingsState.tab == 4: VerticalLayout {
+                    alignment: start;
+                    spacing: Theme.gap-l;
+                    SettingRow {
+                        label: "UFlix " + SettingsState.version;
+                        hint: SettingsState.update-status;
+                        if SettingsState.checking: Busy {
+                            width: 48px;
+                            dot: 6px;
+                        }
+                    }
+                    if SettingsState.update-progress >= 0: Slider {
+                        value: SettingsState.update-progress / 100;
+                    }
+                    HorizontalLayout {
+                        spacing: Theme.gap-s;
+                        alignment: start;
+                        Button {
+                            text: "Check now";
+                            kind: ButtonKind.tonal;
+                            enabled: SettingsState.can-update && !SettingsState.checking;
+                            has-icon: true;
+                            icon: Icons.refresh;
+                            clicked => { SettingsState.check-updates(); }
+                        }
+                        if SettingsState.update-available: Button {
+                            text: "Install and restart";
+                            has-icon: true;
+                            icon: Icons.update;
+                            clicked => { SettingsState.install-update(); }
+                        }
+                        Button {
+                            text: "Releases page";
+                            kind: ButtonKind.plain;
+                            has-icon: true;
+                            icon: Icons.open-in-new;
+                            clicked => { SettingsState.open-releases(); }
+                        }
+                    }
+                    SettingRow {
+                        label: "Check for updates daily";
+                        Toggle {
+                            checked <=> SettingsState.daily-check;
+                            y: (parent.height - self.height) / 2;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    HorizontalLayout {
+        padding: Theme.gap-m;
+        padding-right: Theme.gap-l;
+        alignment: end;
+        spacing: Theme.gap-s;
+        Button {
+            text: "Close";
+            kind: ButtonKind.plain;
+            clicked => { SettingsState.close(); }
+        }
+        Button {
+            text: "Save";
+            has-icon: true;
+            icon: Icons.check;
+            clicked => { SettingsState.save(); }
+        }
+    }
+}
+
+// ------------------------------------------------------------------ open
+
+export global OpenState {
+    in-out property <bool> open;
+    in-out property <string> url;
+    callback close();
+    callback pick-file();
+    callback watch();
+}
+
+export component OpenDialog inherits DialogFrame {
+    title: "Open";
+    card-width: 620px;
+    card-height: 330px;
+    close => { OpenState.close(); }
+    VerticalLayout {
+        padding: Theme.gap-l;
+        padding-top: 0;
+        spacing: Theme.gap-l;
+        Rectangle {
+            height: 84px;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: fta.has-hover ? Theme.accent : Theme.border-strong;
+            background: fta.has-hover ? Theme.surface-2 : transparent;
+            HorizontalLayout {
+                padding: Theme.gap-m;
+                spacing: Theme.gap-m;
+                Image {
+                    source: Icons.folder-open;
+                    width: 32px;
+                    colorize: Theme.accent-hover;
+                    y: (parent.height - self.height) / 2;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Text {
+                        text: "Open a video file";
+                        color: Theme.text;
+                        font-weight: 700;
+                    }
+                    Text {
+                        text: "mkv, mp4, webm, avi, mov, ts…";
+                        color: Theme.text-3;
+                        font-size: Theme.font-small;
+                    }
+                }
+            }
+            fta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { OpenState.pick-file(); }
+            }
+        }
+        HorizontalLayout {
+            spacing: Theme.gap-s;
+            Field {
+                horizontal-stretch: 1;
+                label: "Or paste a link";
+                placeholder: "https://…, magnet:?xt=…, a YouTube link or an IPTV stream";
+                text <=> OpenState.url;
+                accepted => { OpenState.watch(); }
+            }
+            Button {
+                text: "Watch";
+                has-icon: true;
+                icon: Icons.play;
+                y: parent.height - self.height - 1px;
+                clicked => { OpenState.watch(); }
+            }
+        }
+    }
+}
+
+// ------------------------------------------------------------------ download
+
+export struct DownloadJob {
+    title: string,
+    state: string,
+    progress: float,
+    done: bool,
+    failed: bool,
+}
+
+export global DownloadState {
+    in-out property <bool> open;
+    in-out property <string> url;
+    in property <bool> parsing;
+    in property <string> title;
+    in property <[string]> formats;
+    in-out property <int> format;
+    in property <[DownloadJob]> jobs;
+    callback close();
+    callback parse();
+    callback download();
+    callback cancel(int);
+    callback open-folder();
+}
+
+export component DownloadDialog inherits DialogFrame {
+    title: "Download";
+    card-width: 760px;
+    card-height: 620px;
+    close => { DownloadState.close(); }
+    VerticalLayout {
+        padding: Theme.gap-l;
+        padding-top: 0;
+        spacing: Theme.gap-m;
+        vertical-stretch: 1;
+        HorizontalLayout {
+            spacing: Theme.gap-s;
+            Field {
+                horizontal-stretch: 1;
+                label: "Video link";
+                placeholder: "YouTube or any site yt-dlp supports";
+                text <=> DownloadState.url;
+                accepted => { DownloadState.parse(); }
+            }
+            Button {
+                text: "Get formats";
+                kind: ButtonKind.tonal;
+                enabled: !DownloadState.parsing;
+                y: parent.height - self.height - 1px;
+                clicked => { DownloadState.parse(); }
+            }
+        }
+        if DownloadState.parsing: Busy {
+            height: 32px;
+        }
+        if DownloadState.formats.length > 0: VerticalLayout {
+            spacing: Theme.gap-s;
+            Text {
+                text: DownloadState.title;
+                color: Theme.text;
+                font-weight: 700;
+                overflow: elide;
+            }
+            Flickable {
+                height: 36px;
+                content-width: fl.preferred-width;
+                fl := HorizontalLayout {
+                    spacing: Theme.gap-s;
+                    for f[i] in DownloadState.formats: Chip {
+                        text: f;
+                        selected: DownloadState.format == i;
+                        clicked => { DownloadState.format = i; }
+                    }
+                }
+            }
+            HorizontalLayout {
+                alignment: start;
+                Button {
+                    text: "Download";
+                    has-icon: true;
+                    icon: Icons.download;
+                    clicked => { DownloadState.download(); }
+                }
+            }
+        }
+        Rectangle {
+            height: 1px;
+            background: Theme.border;
+        }
+        HorizontalLayout {
+            Text {
+                text: "Downloads";
+                color: Theme.text;
+                font-size: Theme.font-subtitle;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Button {
+                text: "Open folder";
+                kind: ButtonKind.plain;
+                compact: true;
+                has-icon: true;
+                icon: Icons.folder-open;
+                clicked => { DownloadState.open-folder(); }
+            }
+        }
+        ScrollView {
+            vertical-stretch: 1;
+            VerticalLayout {
+                spacing: Theme.gap-s;
+                for j[i] in DownloadState.jobs: Rectangle {
+                    height: 70px;
+                    border-radius: Theme.radius;
+                    background: Theme.bg;
+                    HorizontalLayout {
+                        padding: Theme.gap;
+                        spacing: Theme.gap;
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 5px;
+                            Text {
+                                text: j.title;
+                                color: Theme.text;
+                                font-weight: 600;
+                                overflow: elide;
+                            }
+                            Rectangle {
+                                height: 4px;
+                                border-radius: 2px;
+                                background: Theme.surface-3;
+                                Rectangle {
+                                    x: 0;
+                                    width: parent.width * Math.clamp(j.progress, 0, 1);
+                                    border-radius: 2px;
+                                    background: j.failed ? Theme.warning : j.done ? Theme.success : Theme.accent;
+                                }
+                            }
+                            Text {
+                                text: j.state;
+                                color: Theme.text-3;
+                                font-size: Theme.font-small;
+                                overflow: elide;
+                            }
+                        }
+                        IconButton {
+                            icon: Icons.close;
+                            tooltip: j.done || j.failed ? "Remove" : "Cancel";
+                            y: (parent.height - self.height) / 2;
+                            clicked => { DownloadState.cancel(i); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ------------------------------------------------------------------ subtitles
+
+export struct SubtitleRow {
+    name: string,
+    release: string,
+    meta: string,
+}
+
+export global SubtitlesState {
+    in-out property <bool> open;
+    in property <string> provider;
+    in property <bool> searching;
+    in property <[SubtitleRow]> results;
+    in property <int> downloading: -1;
+    callback close();
+    callback pick(int);
+}
+
+export component SubtitlesDialog inherits DialogFrame {
+    title: "Subtitles · " + SubtitlesState.provider;
+    card-width: 760px;
+    card-height: 600px;
+    close => { SubtitlesState.close(); }
+    Rectangle {
+        vertical-stretch: 1;
+        ScrollView {
+            VerticalLayout {
+                padding: Theme.gap-m;
+                padding-top: 0;
+                spacing: 2px;
+                for r[i] in SubtitlesState.results: Rectangle {
+                    height: 64px;
+                    border-radius: Theme.radius;
+                    background: sta.has-hover ? Theme.surface-2 : transparent;
+                    sta := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { SubtitlesState.pick(i); }
+                    }
+                    HorizontalLayout {
+                        padding-left: 14px;
+                        padding-right: 10px;
+                        spacing: 12px;
+                        Image {
+                            source: Icons.subtitles;
+                            width: 20px;
+                            colorize: Theme.text-3;
+                            y: (parent.height - self.height) / 2;
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 3px;
+                            Text {
+                                text: r.release != "" ? r.release : r.name;
+                                color: Theme.text;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: r.meta;
+                                color: Theme.text-3;
+                                font-size: Theme.font-small;
+                            }
+                        }
+                        if SubtitlesState.downloading == i: Busy {
+                            width: 40px;
+                            dot: 5px;
+                        }
+                        if SubtitlesState.downloading != i: Button {
+                            text: "Use";
+                            kind: ButtonKind.tonal;
+                            compact: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { SubtitlesState.pick(i); }
+                        }
+                    }
+                }
+            }
+        }
+        if SubtitlesState.searching: Busy {
+            dot: 10px;
+        }
+        if !SubtitlesState.searching && SubtitlesState.results.length == 0: Text {
+            text: "No subtitles found. Pick another provider in Settings → Player.";
+            color: Theme.text-3;
+        }
+    }
+}

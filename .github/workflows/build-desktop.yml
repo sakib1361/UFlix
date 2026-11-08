@@ -16,11 +16,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DOTNET_NOLOGO: true
-  DOTNET_CLI_TELEMETRY_OPTOUT: true
   RELEASE_VERSION: ${{ inputs.version }}
-  # baked into the app as its update feed (read by UFlix.Cross.csproj as an MSBuild property)
-  UFlixUpdateRepo: ${{ github.server_url }}/${{ github.repository }}
+  # baked into the app as its update feed (owner/repo, read at compile time by app/src/services/updater.rs)
+  UFLIX_UPDATE_REPO: ${{ github.repository }}
+  CARGO_TERM_COLOR: always
 
 jobs:
   linux:
@@ -42,12 +41,12 @@ jobs:
         shell: bash
         run: |
           export VERSION="${RELEASE_VERSION:-$(tr -d '[:space:]' < VERSION)-ci.$GITHUB_RUN_NUMBER}"
-          UFlix.Cross/Platforms/Desktop/package-linux.sh
+          packaging/linux/package.sh
 
       - uses: actions/upload-artifact@v7
         with:
           name: uflix-linux-x64
-          path: out/linux/*
+          path: out/linux/UFlix-x86_64.AppImage
           if-no-files-found: error
 
   windows:
@@ -65,14 +64,18 @@ jobs:
 
       - uses: ./.github/actions/native-deps
 
+      - name: Inno Setup
+        shell: pwsh
+        run: if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+
       - name: Package (Setup.exe)
         shell: pwsh
         run: |
           $v = if ($env:RELEASE_VERSION) { $env:RELEASE_VERSION } else { "$((Get-Content VERSION -Raw).Trim())-ci.$env:GITHUB_RUN_NUMBER" }
-          UFlix.Cross\Platforms\Windows\package-windows.ps1 -Version $v
+          packaging\windows\package.ps1 -Version $v
 
       - uses: actions/upload-artifact@v7
         with:
           name: uflix-win-x64
-          path: out/windows/*
+          path: out/windows/UFlix-win-Setup.exe
           if-no-files-found: error

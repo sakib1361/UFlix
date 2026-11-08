@@ -1,0 +1,817 @@
+// The player: mpv draws the video underneath every frame; this page is the translucent overlay on top.
+
+import { ScrollView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Icons } from "icons.slint";
+import { Card, IconButton, Button, ButtonKind, Chip, Busy, Slider, Toggle, Tooltip } from "widgets.slint";
+
+export struct MenuItem {
+    text: string,
+    checked: bool,
+    enabled: bool,
+    /// A heading line instead of a choice.
+    header: bool,
+}
+
+export struct Stat {
+    label: string,
+    value: string,
+}
+
+export global PlayerState {
+    in-out property <bool> open;
+    in property <string> title;
+    in property <string> subtitle;
+    in property <float> position;
+    in property <float> duration;
+    in property <float> buffered;
+    in property <bool> paused;
+    in property <bool> loading;
+    in property <string> loading-text;
+    /// 0..100 while a torrent buffers, else < 0.
+    in property <float> loading-progress: -1;
+    in property <string> torrent-stats;
+    in property <float> volume: 100;
+    in property <bool> muted;
+    in property <bool> fullscreen;
+    in-out property <bool> controls-visible: true;
+    in property <bool> has-prev;
+    in property <bool> has-next;
+    in property <bool> live;
+    // menus: "" | "subs" | "audio" | "quality" | "advanced"
+    in-out property <string> menu;
+    in property <string> menu-title;
+    in property <[MenuItem]> menu-items;
+    in property <bool> has-audio-menu;
+    in property <bool> has-quality-menu;
+    in property <string> sub-delay-text;
+    // side panel
+    in property <bool> side-available;
+    in-out property <bool> theater;
+    in property <string> details-title;
+    in property <string> details-channel;
+    in property <string> details-stats;
+    in property <string> details-description;
+    in-out property <bool> description-expanded;
+    in property <string> list-title;
+    in property <[Card]> list;
+    in property <int> list-index;
+    in property <bool> show-autoplay;
+    in-out property <bool> autoplay;
+    // info
+    in-out property <bool> info-open;
+    in property <[Stat]> stats;
+    // advanced
+    in property <float> speed: 1;
+    in property <float> brightness;
+    in property <float> contrast;
+    in property <float> saturation;
+    in property <float> gamma;
+
+    callback close();
+    callback toggle-pause();
+    callback seek(float);
+    callback seek-relative(float);
+    callback set-volume(float);
+    callback toggle-mute();
+    callback toggle-fullscreen();
+    callback prev();
+    callback next();
+    callback open-menu(string);
+    callback menu-select(int);
+    callback sub-delay(float);
+    callback activity();
+    callback set-speed(float);
+    callback set-picture(string, float);
+    callback reset-picture();
+    callback toggle-info();
+    callback toggle-theater();
+    callback list-select(int);
+    callback set-autoplay(bool);
+    callback open-channel();
+    callback width-changed(length);
+}
+
+component Panel inherits Rectangle {
+    background: #141416eb;
+    border-radius: Theme.radius-l;
+    border-width: 1px;
+    border-color: Theme.border;
+    drop-shadow-blur: 30px;
+    drop-shadow-color: #000000b0;
+    TouchArea { }
+}
+
+component MenuRow inherits Rectangle {
+    in property <MenuItem> item;
+    callback clicked;
+    height: root.item.header ? 30px : 38px;
+    border-radius: Theme.radius-s;
+    background: !root.item.header && ta.has-hover && root.item.enabled ? #ffffff14 : transparent;
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 10px;
+        Rectangle {
+            width: 18px;
+            visible: !root.item.header;
+            Image {
+                source: Icons.check;
+                width: 18px;
+                colorize: Theme.accent-hover;
+                visible: root.item.checked;
+            }
+        }
+        Text {
+            text: root.item.text;
+            vertical-alignment: center;
+            overflow: elide;
+            color: root.item.header ? Theme.text-3 : root.item.enabled ? Theme.text : Theme.text-3;
+            font-size: root.item.header ? Theme.font-small : Theme.font-body;
+            font-weight: root.item.header ? 700 : 400;
+        }
+    }
+    ta := TouchArea {
+        enabled: !root.item.header && root.item.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component PictureSlider inherits VerticalLayout {
+    in property <string> label;
+    in property <image> icon;
+    in property <float> value; // -100..100
+    callback changed(float);
+    spacing: 2px;
+    HorizontalLayout {
+        spacing: 8px;
+        Image {
+            source: root.icon;
+            width: 16px;
+            colorize: Theme.text-2;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            text: root.label;
+            color: Theme.text-2;
+            vertical-alignment: center;
+        }
+        Rectangle { horizontal-stretch: 1; }
+        Text {
+            text: (root.value > 0 ? "+" : "") + Math.round(root.value);
+            color: root.value == 0 ? Theme.text-3 : Theme.text;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+    Slider {
+        centered: true;
+        value: (root.value + 100) / 200;
+        changed(v) => { root.changed(Math.round(v * 200 - 100)); }
+    }
+}
+
+component AdvancedPanel inherits Panel {
+    width: 420px;
+    height: layout.preferred-height;
+    layout := VerticalLayout {
+        padding: Theme.gap-m;
+        spacing: Theme.gap;
+        HorizontalLayout {
+            Text {
+                text: "Advanced controls";
+                color: Theme.text;
+                font-size: Theme.font-subtitle;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Button {
+                text: "Reset";
+                kind: ButtonKind.tonal;
+                compact: true;
+                has-icon: true;
+                icon: Icons.refresh;
+                clicked => { PlayerState.reset-picture(); }
+            }
+        }
+        Text {
+            text: "Speed";
+            color: Theme.text-2;
+        }
+        HorizontalLayout {
+            spacing: 6px;
+            for s in [0.5, 0.75, 1, 1.25, 1.5, 2]: Chip {
+                text: s + "×";
+                selected: Math.abs(PlayerState.speed - s) < 0.01;
+                clicked => { PlayerState.set-speed(s); }
+            }
+        }
+        Rectangle {
+            height: 1px;
+            background: Theme.border;
+        }
+        Text {
+            text: "Picture · saved for every video";
+            color: Theme.text-3;
+            font-size: Theme.font-small;
+        }
+        PictureSlider {
+            label: "Brightness";
+            icon: Icons.brightness;
+            value: PlayerState.brightness;
+            changed(v) => { PlayerState.set-picture("brightness", v); }
+        }
+        PictureSlider {
+            label: "Contrast";
+            icon: Icons.tune;
+            value: PlayerState.contrast;
+            changed(v) => { PlayerState.set-picture("contrast", v); }
+        }
+        PictureSlider {
+            label: "Saturation";
+            icon: Icons.tune;
+            value: PlayerState.saturation;
+            changed(v) => { PlayerState.set-picture("saturation", v); }
+        }
+        PictureSlider {
+            label: "Gamma";
+            icon: Icons.brightness;
+            value: PlayerState.gamma;
+            changed(v) => { PlayerState.set-picture("gamma", v); }
+        }
+    }
+}
+
+component MenuPanel inherits Panel {
+    width: 320px;
+    height: Math.min(layout.preferred-height, 460px);
+    layout := VerticalLayout {
+        padding: Theme.gap-s;
+        spacing: 2px;
+        Text {
+            text: PlayerState.menu-title;
+            color: Theme.text;
+            font-size: Theme.font-subtitle;
+            font-weight: 700;
+            height: 36px;
+            vertical-alignment: center;
+            x: 10px;
+        }
+        ScrollView {
+            VerticalLayout {
+                for item[i] in PlayerState.menu-items: MenuRow {
+                    item: item;
+                    clicked => { PlayerState.menu-select(i); }
+                }
+            }
+        }
+        if PlayerState.menu == "subs": HorizontalLayout {
+            padding: 6px;
+            spacing: 6px;
+            Text {
+                text: "Delay";
+                color: Theme.text-2;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            IconButton {
+                icon: Icons.chevron-left;
+                size: 30px;
+                tooltip: "−0.5 s (Z)";
+                clicked => { PlayerState.sub-delay(-0.5); }
+            }
+            Text {
+                text: PlayerState.sub-delay-text;
+                color: Theme.text;
+                vertical-alignment: center;
+                min-width: 54px;
+                horizontal-alignment: center;
+            }
+            IconButton {
+                icon: Icons.chevron-right;
+                size: 30px;
+                tooltip: "+0.5 s (X)";
+                clicked => { PlayerState.sub-delay(0.5); }
+            }
+        }
+    }
+}
+
+component InfoPanel inherits Panel {
+    width: 440px;
+    height: Math.min(layout.preferred-height, 520px);
+    layout := VerticalLayout {
+        padding: Theme.gap-m;
+        spacing: 6px;
+        HorizontalLayout {
+            Text {
+                text: "Info";
+                color: Theme.text;
+                font-size: Theme.font-subtitle;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            IconButton {
+                icon: Icons.close;
+                size: 30px;
+                icon-size: 16px;
+                clicked => { PlayerState.toggle-info(); }
+            }
+        }
+        for s in PlayerState.stats: HorizontalLayout {
+            spacing: Theme.gap;
+            Text {
+                text: s.label;
+                color: Theme.text-3;
+                width: 120px;
+            }
+            Text {
+                text: s.value;
+                color: Theme.text;
+                overflow: elide;
+                horizontal-stretch: 1;
+            }
+        }
+    }
+}
+
+component SideEntry inherits Rectangle {
+    in property <Card> entry;
+    in property <bool> current;
+    callback clicked;
+    height: 82px;
+    border-radius: Theme.radius;
+    background: root.current ? Theme.accent-soft : ta.has-hover ? #ffffff10 : transparent;
+    HorizontalLayout {
+        padding: 6px;
+        spacing: 10px;
+        Rectangle {
+            width: 124px;
+            border-radius: Theme.radius-s;
+            clip: true;
+            background: Theme.surface-3;
+            Image {
+                source: root.entry.image;
+                width: 100%;
+                height: 100%;
+                image-fit: cover;
+            }
+            if root.entry.badge != "": Rectangle {
+                x: parent.width - self.width - 4px;
+                y: parent.height - self.height - 4px;
+                width: b.preferred-width + 8px;
+                height: 18px;
+                border-radius: 4px;
+                background: #000000c0;
+                b := Text {
+                    text: root.entry.badge;
+                    color: white;
+                    font-size: 10px;
+                    font-weight: 700;
+                }
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 4px;
+            Text {
+                text: root.entry.title;
+                color: Theme.text;
+                font-weight: 600;
+                wrap: word-wrap;
+                overflow: elide;
+                height: 38px;
+            }
+            Text {
+                text: root.entry.subtitle;
+                color: Theme.text-3;
+                font-size: Theme.font-small;
+                overflow: elide;
+            }
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component SidePanel inherits Rectangle {
+    background: Theme.surface;
+    VerticalLayout {
+        padding: Theme.gap-m;
+        spacing: Theme.gap;
+        if PlayerState.details-title != "": VerticalLayout {
+            spacing: 6px;
+            alignment: start;
+            vertical-stretch: 0;
+            Text {
+                text: PlayerState.details-title;
+                color: Theme.text;
+                font-size: Theme.font-subtitle;
+                font-weight: 700;
+                wrap: word-wrap;
+            }
+            if PlayerState.details-channel != "": Rectangle {
+                height: 30px;
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    Image {
+                        source: Icons.person;
+                        width: 18px;
+                        colorize: Theme.text-2;
+                        y: (parent.height - self.height) / 2;
+                    }
+                    Text {
+                        text: PlayerState.details-channel;
+                        color: chta.has-hover ? Theme.accent-hover : Theme.text-2;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                    }
+                }
+                chta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { PlayerState.open-channel(); }
+                }
+            }
+            if PlayerState.details-stats != "": Text {
+                text: PlayerState.details-stats;
+                color: Theme.text-3;
+                font-size: Theme.font-small;
+            }
+            if PlayerState.details-description != "": VerticalLayout {
+                Text {
+                    text: PlayerState.details-description;
+                    color: Theme.text-2;
+                    font-size: Theme.font-small;
+                    wrap: word-wrap;
+                    overflow: elide;
+                    height: PlayerState.description-expanded ? Math.min(self.preferred-height, 260px) : 52px;
+                }
+                HorizontalLayout {
+                    alignment: start;
+                    Button {
+                        text: PlayerState.description-expanded ? "Show less" : "Show more";
+                        kind: ButtonKind.plain;
+                        compact: true;
+                        clicked => { PlayerState.description-expanded = !PlayerState.description-expanded; }
+                    }
+                }
+            }
+            Rectangle {
+                height: 1px;
+                background: Theme.border;
+            }
+        }
+        HorizontalLayout {
+            spacing: Theme.gap-s;
+            Text {
+                text: PlayerState.list-title;
+                color: Theme.text;
+                font-size: Theme.font-subtitle;
+                font-weight: 700;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            if PlayerState.show-autoplay: Text {
+                text: "Autoplay";
+                color: Theme.text-2;
+                vertical-alignment: center;
+            }
+            if PlayerState.show-autoplay: Toggle {
+                checked: PlayerState.autoplay;
+                y: (parent.height - self.height) / 2;
+                toggled(v) => { PlayerState.set-autoplay(v); }
+            }
+        }
+        ScrollView {
+            vertical-stretch: 1;
+            VerticalLayout {
+                spacing: 2px;
+                for e[i] in PlayerState.list: SideEntry {
+                    entry: e;
+                    current: i == PlayerState.list-index;
+                    clicked => { PlayerState.list-select(i); }
+                }
+            }
+        }
+    }
+}
+
+export component PlayerPage inherits Rectangle {
+    // transparent: the video is under this page
+    property <bool> side: PlayerState.side-available && !PlayerState.theater && !PlayerState.fullscreen;
+    property <length> side-width: 400px;
+    property <bool> bar: PlayerState.controls-visible || PlayerState.paused || PlayerState.loading || PlayerState.menu != "";
+    property <string> pos-text: root.fmt(PlayerState.position);
+    property <string> dur-text: root.fmt(PlayerState.duration);
+    changed width => { PlayerState.width-changed(self.width); }
+    changed side => { PlayerState.width-changed(self.width); }
+
+    pure function two(n: int) -> string { return n < 10 ? "0" + n : "" + n; }
+    pure function fmt(t: float) -> string {
+        return t >= 3600 ? Math.floor(t / 3600) + ":" + two(Math.mod(Math.floor(t / 60), 60)) + ":" + two(Math.mod(Math.floor(t), 60))
+            : Math.floor(t / 60) + ":" + two(Math.mod(Math.floor(t), 60));
+    }
+
+    forward-focus: keys;
+    keys := FocusScope {
+        key-pressed(e) => {
+            PlayerState.activity();
+            if (e.text == " " || e.text == "k") { PlayerState.toggle-pause(); return accept; }
+            if (e.text == Key.LeftArrow) { PlayerState.seek-relative(-10); return accept; }
+            if (e.text == Key.RightArrow) { PlayerState.seek-relative(10); return accept; }
+            if (e.text == Key.UpArrow) { PlayerState.set-volume(Math.min(PlayerState.volume + 5, 200)); return accept; }
+            if (e.text == Key.DownArrow) { PlayerState.set-volume(Math.max(PlayerState.volume - 5, 0)); return accept; }
+            if (e.text == "f") { PlayerState.toggle-fullscreen(); return accept; }
+            if (e.text == "t") { PlayerState.toggle-theater(); return accept; }
+            if (e.text == "m") { PlayerState.toggle-mute(); return accept; }
+            if (e.text == "i") { PlayerState.toggle-info(); return accept; }
+            if (e.text == "z") { PlayerState.sub-delay(-0.5); return accept; }
+            if (e.text == "x") { PlayerState.sub-delay(0.5); return accept; }
+            if (e.text == "n") { PlayerState.next(); return accept; }
+            if (e.text == Key.Escape) {
+                if (PlayerState.menu != "") { PlayerState.menu = ""; return accept; }
+                if (PlayerState.fullscreen) { PlayerState.toggle-fullscreen(); return accept; }
+                PlayerState.close();
+                return accept;
+            }
+            reject
+        }
+
+        // The video area: move shows the controls, click pauses (or closes a menu), double-click is fullscreen.
+        video := TouchArea {
+            width: root.side ? root.width - root.side-width : root.width;
+            x: 0;
+            mouse-cursor: root.bar ? MouseCursor.default : MouseCursor.none;
+            changed mouse-x => { PlayerState.activity(); }
+            changed mouse-y => { PlayerState.activity(); }
+            clicked => {
+                if (PlayerState.menu != "") { PlayerState.menu = ""; } else { PlayerState.toggle-pause(); }
+                keys.focus();
+            }
+            double-clicked => { PlayerState.toggle-fullscreen(); }
+
+            // centre: loading or paused
+            if PlayerState.loading: Panel {
+                width: 360px;
+                height: loadl.preferred-height;
+                loadl := VerticalLayout {
+                    padding: Theme.gap-l;
+                    spacing: Theme.gap;
+                    Busy {
+                        height: 24px;
+                        dot: 10px;
+                    }
+                    Text {
+                        text: PlayerState.loading-text;
+                        color: Theme.text;
+                        horizontal-alignment: center;
+                        wrap: word-wrap;
+                    }
+                    if PlayerState.loading-progress >= 0: Slider {
+                        value: PlayerState.loading-progress / 100;
+                    }
+                    if PlayerState.torrent-stats != "": Text {
+                        text: PlayerState.torrent-stats;
+                        color: Theme.text-3;
+                        font-size: Theme.font-small;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+            if PlayerState.paused && !PlayerState.loading: Rectangle {
+                width: 88px;
+                height: 88px;
+                border-radius: 44px;
+                background: #00000099;
+                Image {
+                    source: Icons.play;
+                    width: 46px;
+                    colorize: white;
+                }
+            }
+
+            // top bar
+            Rectangle {
+                y: 0;
+                height: 110px;
+                opacity: root.bar ? 1 : 0;
+                visible: self.opacity > 0.01;
+                animate opacity { duration: Theme.normal; }
+                background: @linear-gradient(180deg, #000000c8 0%, #00000000 100%);
+                HorizontalLayout {
+                    padding: Theme.gap-m;
+                    spacing: Theme.gap;
+                    alignment: start;
+                    IconButton {
+                        icon: Icons.arrow-back;
+                        size: 42px;
+                        icon-size: 24px;
+                        tooltip: "Back (Esc)";
+                        tint: white;
+                        clicked => { PlayerState.close(); }
+                    }
+                    VerticalLayout {
+                        alignment: start;
+                        padding-top: 4px;
+                        Text {
+                            text: PlayerState.title;
+                            color: white;
+                            font-size: Theme.font-title;
+                            font-weight: 700;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: PlayerState.subtitle;
+                            color: #ffffffb0;
+                            font-size: Theme.font-small;
+                            overflow: elide;
+                        }
+                    }
+                }
+            }
+
+            // bottom bar
+            bottom := Rectangle {
+                y: parent.height - self.height;
+                height: 128px;
+                opacity: root.bar ? 1 : 0;
+                visible: self.opacity > 0.01;
+                animate opacity { duration: Theme.normal; }
+                background: @linear-gradient(0deg, #000000d8 0%, #00000000 100%);
+                VerticalLayout {
+                    alignment: end;
+                    padding-left: Theme.gap-l;
+                    padding-right: Theme.gap-l;
+                    padding-bottom: Theme.gap;
+                    spacing: 2px;
+                    seekbar := Slider {
+                        visible: !PlayerState.live;
+                        value: PlayerState.duration > 0 ? PlayerState.position / PlayerState.duration : 0;
+                        secondary: PlayerState.duration > 0 ? PlayerState.buffered / PlayerState.duration : 0;
+                        changed(v) => { PlayerState.seek(v * PlayerState.duration); }
+                    }
+                    HorizontalLayout {
+                        spacing: 4px;
+                        height: 48px;
+                        if PlayerState.has-prev: IconButton {
+                            icon: Icons.skip-previous;
+                            tint: white;
+                            tooltip: "Previous";
+                            tooltip-above: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { PlayerState.prev(); }
+                        }
+                        IconButton {
+                            icon: PlayerState.paused ? Icons.play : Icons.pause;
+                            size: 44px;
+                            icon-size: 28px;
+                            tint: white;
+                            tooltip: PlayerState.paused ? "Play (Space)" : "Pause (Space)";
+                            tooltip-above: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { PlayerState.toggle-pause(); }
+                        }
+                        if PlayerState.has-next: IconButton {
+                            icon: Icons.skip-next;
+                            tint: white;
+                            tooltip: "Next (N)";
+                            tooltip-above: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { PlayerState.next(); }
+                        }
+                        if !PlayerState.live: IconButton {
+                            icon: Icons.replay;
+                            tint: white;
+                            tooltip: "Back 10 s (←)";
+                            tooltip-above: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { PlayerState.seek-relative(-10); }
+                        }
+                        if !PlayerState.live: IconButton {
+                            icon: Icons.forward;
+                            tint: white;
+                            tooltip: "Forward 10 s (→)";
+                            tooltip-above: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { PlayerState.seek-relative(10); }
+                        }
+                        IconButton {
+                            icon: PlayerState.muted || PlayerState.volume <= 0 ? Icons.volume-off : Icons.volume-up;
+                            tint: white;
+                            tooltip: "Mute (M)";
+                            tooltip-above: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { PlayerState.toggle-mute(); }
+                        }
+                        Slider {
+                            width: 110px;
+                            y: (parent.height - self.height) / 2;
+                            value: PlayerState.muted ? 0 : PlayerState.volume / 100;
+                            changed(v) => { PlayerState.set-volume(v * 100); }
+                        }
+                        Text {
+                            text: PlayerState.live ? "LIVE" : root.pos-text + "  /  " + root.dur-text;
+                            color: PlayerState.live ? Theme.accent-hover : #ffffffd0;
+                            font-weight: PlayerState.live ? 700 : 400;
+                            vertical-alignment: center;
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        IconButton {
+                            icon: Icons.subtitles;
+                            tint: white;
+                            active: PlayerState.menu == "subs";
+                            tooltip: "Subtitles";
+                            tooltip-above: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { PlayerState.open-menu("subs"); }
+                        }
+                        if PlayerState.has-audio-menu: IconButton {
+                            icon: Icons.audio;
+                            tint: white;
+                            active: PlayerState.menu == "audio";
+                            tooltip: "Audio";
+                            tooltip-above: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { PlayerState.open-menu("audio"); }
+                        }
+                        if PlayerState.has-quality-menu: IconButton {
+                            icon: Icons.hd;
+                            tint: white;
+                            active: PlayerState.menu == "quality";
+                            tooltip: "Quality";
+                            tooltip-above: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { PlayerState.open-menu("quality"); }
+                        }
+                        IconButton {
+                            icon: Icons.tune;
+                            tint: white;
+                            active: PlayerState.menu == "advanced";
+                            tooltip: "Advanced controls";
+                            tooltip-above: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { PlayerState.open-menu("advanced"); }
+                        }
+                        IconButton {
+                            icon: Icons.info;
+                            tint: white;
+                            active: PlayerState.info-open;
+                            tooltip: "Info (I)";
+                            tooltip-above: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { PlayerState.toggle-info(); }
+                        }
+                        if PlayerState.side-available && !PlayerState.fullscreen: IconButton {
+                            icon: PlayerState.theater ? Icons.side-panel : Icons.theater;
+                            tint: white;
+                            tooltip: PlayerState.theater ? "Show side panel (T)" : "Theater mode (T)";
+                            tooltip-above: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { PlayerState.toggle-theater(); }
+                        }
+                        IconButton {
+                            icon: PlayerState.fullscreen ? Icons.fullscreen-exit : Icons.fullscreen;
+                            tint: white;
+                            tooltip: PlayerState.fullscreen ? "Exit full screen (F)" : "Full screen (F)";
+                            tooltip-above: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { PlayerState.toggle-fullscreen(); }
+                        }
+                    }
+                }
+                // time under the pointer while hovering the seek bar
+                if seekbar.hovering && PlayerState.duration > 0: Tooltip {
+                    text: root.fmt(Math.clamp(seekbar.hover-x / seekbar.width, 0, 1) * PlayerState.duration);
+                    x: Theme.gap-l + Math.clamp(seekbar.hover-x, 0, seekbar.width) - self.width / 2;
+                    y: seekbar.y - self.height - 4px;
+                }
+            }
+
+            // panels above the bar, right-aligned
+            if PlayerState.menu == "advanced": AdvancedPanel {
+                x: parent.width - self.width - Theme.gap-l;
+                y: parent.height - self.height - 112px;
+            }
+            if PlayerState.menu != "" && PlayerState.menu != "advanced": MenuPanel {
+                x: parent.width - self.width - Theme.gap-l;
+                y: parent.height - self.height - 112px;
+            }
+            if PlayerState.info-open: InfoPanel {
+                x: Theme.gap-l;
+                y: 96px;
+            }
+        }
+
+        if root.side: SidePanel {
+            x: root.width - root.side-width;
+            width: root.side-width;
+        }
+    }
+}

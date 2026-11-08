@@ -1,0 +1,27 @@
+[workspace]
+resolver = "3"
+members = ["crates/mpv", "crates/torrent", "crates/engine", "app"]
+default-members = ["app"]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/sakib1361/UFlix"
+
+[workspace.dependencies]
+libloading = "0.9"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "process"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "query", "rustls", "gzip", "stream"] }
+regex = "1"
+chrono = { version = "0.4", features = ["serde"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true
+
+[profile.dev.package."*"]
+opt-level = 2

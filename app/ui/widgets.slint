@@ -1,0 +1,677 @@
+// Shared building blocks.
+
+import { Theme } from "theme.slint";
+import { Icons } from "icons.slint";
+
+/// One tile: poster, thumbnail or channel logo with its caption.
+export struct Card {
+    title: string,
+    subtitle: string,
+    image: image,
+    badge: string,
+    /// 0..1, drawn as a bar under the image when > 0.
+    progress: float,
+    /// Longer text where a layout shows it (episode overviews).
+    detail: string,
+}
+
+export component Tooltip inherits Rectangle {
+    in property <string> text;
+    background: Theme.surface-3;
+    border-radius: Theme.radius-s;
+    drop-shadow-blur: 8px;
+    drop-shadow-color: #00000080;
+    width: label.preferred-width + 16px;
+    height: label.preferred-height + 10px;
+    label := Text {
+        text: root.text;
+        color: Theme.text;
+        font-size: Theme.font-small;
+    }
+}
+
+export component IconButton inherits Rectangle {
+    in property <image> icon;
+    in property <length> size: 36px;
+    in property <length> icon-size: 20px;
+    /// Toggled-on look (accent tint).
+    in property <bool> active;
+    in property <bool> enabled: true;
+    in property <color> tint: Theme.text;
+    in property <string> tooltip;
+    /// Where the tooltip opens: above for the player bar, below elsewhere.
+    in property <bool> tooltip-above;
+    callback clicked;
+    width: root.size;
+    height: root.size;
+    border-radius: self.height / 2;
+    background: !root.enabled ? transparent : ta.pressed ? #ffffff30 : ta.has-hover ? #ffffff18 : root.active ? Theme.accent-soft : transparent;
+    animate background { duration: Theme.fast; }
+    Image {
+        source: root.icon;
+        width: root.icon-size;
+        height: root.icon-size;
+        colorize: !root.enabled ? Theme.text-3 : root.active ? Theme.accent-hover : root.tint;
+    }
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+    if ta.has-hover && root.tooltip != "": Tooltip {
+        text: root.tooltip;
+        x: (root.width - self.width) / 2;
+        y: root.tooltip-above ? -self.height - 6px : root.height + 6px;
+    }
+}
+
+export enum ButtonKind { filled, tonal, outline, plain }
+
+export component Button inherits Rectangle {
+    in property <string> text;
+    in property <image> icon;
+    in property <bool> has-icon;
+    in property <ButtonKind> kind: ButtonKind.filled;
+    in property <bool> enabled: true;
+    in property <bool> compact;
+    callback clicked;
+    height: root.compact ? 30px : 38px;
+    min-width: layout.preferred-width;
+    horizontal-stretch: 0;
+    border-radius: root.height / 2;
+    border-width: root.kind == ButtonKind.outline ? 1px : 0px;
+    border-color: Theme.border-strong;
+    property <color> base: root.kind == ButtonKind.filled ? Theme.accent : root.kind == ButtonKind.tonal ? Theme.surface-3 : transparent;
+    background: !root.enabled ? Theme.surface-2 : ta.pressed ? base.darker(0.2) : ta.has-hover ? (root.kind == ButtonKind.filled ? Theme.accent-hover : #ffffff18) : base;
+    animate background { duration: Theme.fast; }
+    layout := HorizontalLayout {
+        padding-left: root.compact ? 12px : 18px;
+        padding-right: root.compact ? 12px : 18px;
+        spacing: 8px;
+        alignment: center;
+        if root.has-icon: Image {
+            source: root.icon;
+            width: 18px;
+            colorize: label.color;
+            y: (parent.height - self.height) / 2;
+        }
+        label := Text {
+            text: root.text;
+            vertical-alignment: center;
+            font-size: root.compact ? Theme.font-small : Theme.font-body;
+            font-weight: 600;
+            color: !root.enabled ? Theme.text-3 : root.kind == ButtonKind.filled ? white : Theme.text;
+        }
+    }
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+/// A selectable pill (filters, tabs).
+export component Chip inherits Rectangle {
+    in property <string> text;
+    in property <bool> selected;
+    in property <image> icon;
+    in property <bool> has-icon;
+    callback clicked;
+    height: 32px;
+    min-width: layout.preferred-width;
+    horizontal-stretch: 0;
+    border-radius: 16px;
+    background: root.selected ? Theme.text : ta.has-hover ? Theme.surface-3 : Theme.surface-2;
+    animate background { duration: Theme.fast; }
+    layout := HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        spacing: 6px;
+        alignment: center;
+        if root.has-icon: Image {
+            source: root.icon;
+            width: 16px;
+            colorize: label.color;
+            y: (parent.height - self.height) / 2;
+        }
+        label := Text {
+            text: root.text;
+            vertical-alignment: center;
+            font-size: Theme.font-small + 1px;
+            font-weight: 600;
+            color: root.selected ? Theme.bg : Theme.text;
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+/// Three pulsing dots. Only animates while shown.
+export component Busy inherits HorizontalLayout {
+    in property <length> dot: 7px;
+    in property <color> color: Theme.accent;
+    spacing: root.dot * 0.8;
+    alignment: center;
+    for i in 3: Rectangle {
+        width: root.dot;
+        height: root.dot;
+        y: (parent.height - self.height) / 2;
+        border-radius: self.width / 2;
+        background: root.color;
+        opacity: 0.25 + 0.75 * Math.abs(Math.sin(animation-tick() / 1.2s * 180deg + i * 50deg));
+    }
+}
+
+export component SearchField inherits Rectangle {
+    in property <string> placeholder: "Search";
+    in-out property <string> text <=> input.text;
+    in property <bool> busy;
+    out property <bool> focused: input.has-focus;
+    callback edited(string);
+    callback accepted(string);
+    height: 44px;
+    border-radius: self.height / 2;
+    background: input.has-focus ? Theme.surface-3 : Theme.surface-2;
+    border-width: 1px;
+    border-color: input.has-focus ? Theme.accent : Theme.border;
+    animate border-color, background { duration: Theme.fast; }
+    public function focus-input() { input.focus(); }
+    public function clear() { input.text = ""; }
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 6px;
+        spacing: 10px;
+        Image {
+            source: Icons.search;
+            width: 20px;
+            colorize: input.has-focus ? Theme.text : Theme.text-3;
+            y: (parent.height - self.height) / 2;
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+            input := TextInput {
+                color: Theme.text;
+                font-size: Theme.font-body + 1px;
+                vertical-alignment: center;
+                single-line: true;
+                edited => { root.edited(self.text); }
+                accepted => { root.accepted(self.text); }
+            }
+            if input.text == "": Text {
+                x: 0;
+                text: root.placeholder;
+                color: Theme.text-3;
+                font-size: Theme.font-body + 1px;
+                vertical-alignment: center;
+                height: parent.height;
+            }
+        }
+        if root.busy: Busy {
+            width: 36px;
+            dot: 5px;
+        }
+        if input.text != "": IconButton {
+            icon: Icons.close;
+            size: 32px;
+            icon-size: 16px;
+            y: (parent.height - self.height) / 2;
+            clicked => {
+                input.text = "";
+                root.edited("");
+                input.focus();
+            }
+        }
+    }
+}
+
+/// Poster (2:3) or thumbnail (16:9) tile with title, subtitle, badge and progress.
+export component MediaCard inherits Rectangle {
+    in property <Card> card;
+    in property <length> card-width: Theme.poster-width;
+    in property <length> image-height: Theme.poster-height;
+    in property <bool> can-delete;
+    in property <image> placeholder: Icons.movie;
+    /// Logos: fit inside the tile with a margin instead of cropping.
+    in property <bool> contain;
+    callback clicked;
+    callback remove;
+    callback context(length, length);
+    width: root.card-width;
+    height: root.image-height + 54px;
+    frame := Rectangle {
+        y: 0;
+        height: root.image-height;
+        border-radius: Theme.radius;
+        clip: true;
+        background: Theme.surface-2;
+        Image {
+            source: root.placeholder;
+            width: 40px;
+            colorize: Theme.surface-3;
+        }
+        Image {
+            source: root.card.image;
+            width: root.contain ? parent.width * 0.7 : parent.width;
+            height: root.contain ? parent.height * 0.7 : parent.height;
+            image-fit: root.contain ? ImageFit.contain : ImageFit.cover;
+        }
+        Rectangle {
+            background: @linear-gradient(0deg, #000000b0 0%, #00000000 55%);
+            opacity: ta.has-hover ? 1 : 0;
+            animate opacity { duration: Theme.normal; }
+        }
+        Rectangle {
+            width: 48px;
+            height: 48px;
+            border-radius: 24px;
+            background: #000000a0;
+            opacity: ta.has-hover ? 1 : 0;
+            animate opacity { duration: Theme.normal; }
+            Image {
+                source: Icons.play;
+                width: 26px;
+                colorize: white;
+            }
+        }
+        if root.card.badge != "": Rectangle {
+            x: parent.width - self.width - 8px;
+            y: 8px;
+            width: badge.preferred-width + 12px;
+            height: 22px;
+            border-radius: 6px;
+            background: #000000c0;
+            badge := Text {
+                text: root.card.badge;
+                color: white;
+                font-size: 11px;
+                font-weight: 700;
+            }
+        }
+        if root.card.progress > 0: Rectangle {
+            y: parent.height - 4px;
+            height: 4px;
+            background: #ffffff40;
+            Rectangle {
+                x: 0;
+                width: parent.width * Math.min(root.card.progress, 1);
+                background: Theme.accent;
+            }
+        }
+    }
+    Rectangle {
+        y: 0;
+        height: root.image-height;
+        border-radius: Theme.radius;
+        border-width: 2px;
+        border-color: ta.has-hover ? Theme.accent : transparent;
+        animate border-color { duration: Theme.normal; }
+    }
+    Text {
+        y: root.image-height + 8px;
+        width: root.width;
+        text: root.card.title;
+        color: Theme.text;
+        font-size: Theme.font-body;
+        font-weight: 600;
+        overflow: elide;
+    }
+    Text {
+        y: root.image-height + 28px;
+        width: root.width;
+        text: root.card.subtitle;
+        color: Theme.text-3;
+        font-size: Theme.font-small;
+        overflow: elide;
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down && e.button == PointerEventButton.right) {
+                root.context(self.absolute-position.x + self.mouse-x, self.absolute-position.y + self.mouse-y);
+            }
+        }
+    }
+    if root.can-delete && ta.has-hover: IconButton {
+        x: 6px;
+        y: 6px;
+        icon: Icons.close;
+        size: 30px;
+        icon-size: 16px;
+        tooltip: "Remove";
+        background: #000000c0;
+        clicked => { root.remove(); }
+    }
+}
+
+/// A titled, horizontally scrolling row of cards with paging arrows.
+export component MediaRow inherits VerticalLayout {
+    in property <string> title;
+    in property <[Card]> cards;
+    in property <bool> can-delete;
+    in property <bool> can-explore: true;
+    in property <bool> loading;
+    in property <length> card-width: Theme.poster-width;
+    in property <length> image-height: Theme.poster-height;
+    in property <image> placeholder: Icons.movie;
+    callback open(int);
+    callback remove(int);
+    callback explore();
+    callback near-end();
+    callback context(int, length, length);
+    spacing: Theme.gap;
+    property <length> step: (root.card-width + Theme.gap-m) * Math.max(1, Math.floor(flick.width / (root.card-width + Theme.gap-m)));
+    property <length> max-scroll: Math.max(0, flick.content-width - flick.width);
+    HorizontalLayout {
+        spacing: Theme.gap-s;
+        Text {
+            text: root.title;
+            color: Theme.text;
+            font-size: Theme.font-title;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+        if root.loading: Busy {
+            width: 40px;
+            dot: 5px;
+        }
+        Rectangle { horizontal-stretch: 1; }
+        if root.can-explore: Button {
+            text: "Explore";
+            kind: ButtonKind.plain;
+            compact: true;
+            y: (parent.height - self.height) / 2;
+            clicked => { root.explore(); }
+        }
+        IconButton {
+            icon: Icons.chevron-left;
+            enabled: flick.content-x < 0;
+            tooltip: "Previous";
+            clicked => { flick.content-x = Math.min(0, flick.content-x + root.step); }
+        }
+        IconButton {
+            icon: Icons.chevron-right;
+            enabled: -flick.content-x < root.max-scroll;
+            tooltip: "Next";
+            clicked => {
+                flick.content-x = Math.max(-root.max-scroll, flick.content-x - root.step);
+                root.near-end();
+            }
+        }
+    }
+    flick := Flickable {
+        height: root.image-height + 58px;
+        content-width: root.cards.length * (root.card-width + Theme.gap-m);
+        animate content-x { duration: 300ms; easing: ease-out; }
+        changed content-x => {
+            if (-self.content-x + self.width * 2 > self.content-width) { root.near-end(); }
+        }
+        HorizontalLayout {
+            spacing: Theme.gap-m;
+            alignment: start;
+            for c[i] in root.cards: MediaCard {
+                card: c;
+                card-width: root.card-width;
+                image-height: root.image-height;
+                can-delete: root.can-delete;
+                placeholder: root.placeholder;
+                clicked => { root.open(i); }
+                remove => { root.remove(i); }
+                context(x, y) => { root.context(i, x, y); }
+            }
+        }
+    }
+}
+
+/// A dark scrim with a centred card, for dialogs.
+export component DialogFrame inherits Rectangle {
+    in property <length> card-width: 760px;
+    in property <length> card-height: 600px;
+    in property <string> title;
+    in property <bool> show-header: true;
+    callback close;
+    background: Theme.scrim;
+    TouchArea {
+        clicked => { root.close(); }
+    }
+    card := Rectangle {
+        width: Math.min(root.card-width, root.width - 48px);
+        height: Math.min(root.card-height, root.height - 48px);
+        background: Theme.surface;
+        border-radius: Theme.radius-l;
+        border-width: 1px;
+        border-color: Theme.border;
+        drop-shadow-blur: 40px;
+        drop-shadow-color: #000000c0;
+        clip: true;
+        TouchArea { }
+        VerticalLayout {
+            if root.show-header: HorizontalLayout {
+                padding: Theme.gap-m;
+                padding-left: Theme.gap-l;
+                Text {
+                    text: root.title;
+                    color: Theme.text;
+                    font-size: Theme.font-title;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                Rectangle { horizontal-stretch: 1; }
+                IconButton {
+                    icon: Icons.close;
+                    tooltip: "Close";
+                    clicked => { root.close(); }
+                }
+            }
+            @children
+        }
+    }
+}
+
+export component Toast inherits Rectangle {
+    in property <string> text;
+    background: Theme.surface-3;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.border-strong;
+    drop-shadow-blur: 24px;
+    drop-shadow-color: #000000a0;
+    width: Math.min(label.preferred-width + 40px, 560px);
+    height: label.preferred-height + 24px;
+    label := Text {
+        width: parent.width - 40px;
+        text: root.text;
+        color: Theme.text;
+        wrap: word-wrap;
+        horizontal-alignment: center;
+    }
+}
+
+/// Cards in a wrapping grid that fills the available width; scroll it with a ScrollView around it.
+export component CardGrid inherits Rectangle {
+    in property <[Card]> cards;
+    in property <length> card-width: Theme.poster-width;
+    in property <length> image-height: Theme.poster-height;
+    in property <length> spacing: Theme.gap-l;
+    in property <bool> can-delete;
+    in property <image> placeholder: Icons.movie;
+    in property <bool> contain;
+    callback open(int);
+    callback remove(int);
+    callback context(int, length, length);
+    property <int> columns: Math.max(1, Math.floor((root.width + root.spacing) / (root.card-width + root.spacing)));
+    // stretch cards so the row fills the width exactly
+    property <length> cell: (root.width - (root.columns - 1) * root.spacing) / root.columns;
+    property <float> scale: root.cell / root.card-width;
+    property <length> cell-height: root.image-height * root.scale + 54px;
+    height: Math.ceil(root.cards.length / root.columns) * (root.cell-height + root.spacing);
+    for c[i] in root.cards: MediaCard {
+        x: Math.mod(i, root.columns) * (root.cell + root.spacing);
+        y: Math.floor(i / root.columns) * (root.cell-height + root.spacing);
+        card: c;
+        card-width: root.cell;
+        image-height: root.image-height * root.scale;
+        can-delete: root.can-delete;
+        placeholder: root.placeholder;
+        contain: root.contain;
+        clicked => { root.open(i); }
+        remove => { root.remove(i); }
+        context(x, y) => { root.context(i, x, y); }
+    }
+}
+
+/// A horizontally scrolling strip of chips (categories, topics).
+export component ChipStrip inherits Flickable {
+    in property <[string]> items;
+    in property <int> selected: -1;
+    callback select(int);
+    height: 36px;
+    content-width: strip.preferred-width;
+    strip := HorizontalLayout {
+        spacing: Theme.gap-s;
+        alignment: start;
+        for t[i] in root.items: Chip {
+            text: t;
+            selected: i == root.selected;
+            clicked => { root.select(i); }
+        }
+    }
+}
+
+/// A thin bar that grows on hover; reports the clicked or dragged position (0..1). `secondary` draws a buffered range.
+export component Slider inherits Rectangle {
+    in property <float> value;
+    in property <float> secondary;
+    in property <bool> centered; // fill from the middle (picture adjustments)
+    out property <bool> hovering: ta.has-hover || ta.pressed;
+    out property <length> hover-x: ta.mouse-x;
+    out property <bool> dragging: ta.pressed;
+    callback changed(float);
+    callback released(float);
+    property <float> drag;
+    property <float> shown: ta.pressed ? root.drag : Math.clamp(root.value, 0, 1);
+    height: 22px;
+    Rectangle {
+        y: (parent.height - self.height) / 2;
+        height: root.hovering ? 6px : 4px;
+        animate height { duration: Theme.fast; }
+        border-radius: self.height / 2;
+        background: #ffffff38;
+        Rectangle {
+            x: 0;
+            width: parent.width * Math.clamp(root.secondary, 0, 1);
+            border-radius: parent.border-radius;
+            background: #ffffff40;
+        }
+        Rectangle {
+            x: root.centered ? parent.width * Math.min(0.5, root.shown) : 0;
+            width: root.centered ? parent.width * Math.abs(root.shown - 0.5) : parent.width * root.shown;
+            border-radius: parent.border-radius;
+            background: Theme.accent;
+        }
+    }
+    Rectangle {
+        width: root.hovering ? 14px : 10px;
+        height: self.width;
+        animate width { duration: Theme.fast; }
+        x: root.width * root.shown - self.width / 2;
+        y: (parent.height - self.height) / 2;
+        border-radius: self.width / 2;
+        background: white;
+        drop-shadow-blur: 4px;
+        drop-shadow-color: #00000080;
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
+                root.drag = Math.clamp(self.mouse-x / root.width, 0, 1);
+                root.changed(root.drag);
+            }
+            if (e.kind == PointerEventKind.up && e.button == PointerEventButton.left) {
+                root.released(root.drag);
+            }
+        }
+        moved => {
+            if (self.pressed) {
+                root.drag = Math.clamp(self.mouse-x / root.width, 0, 1);
+                root.changed(root.drag);
+            }
+        }
+    }
+}
+
+/// A switch.
+export component Toggle inherits Rectangle {
+    in-out property <bool> checked;
+    callback toggled(bool);
+    width: 40px;
+    height: 22px;
+    border-radius: 11px;
+    background: root.checked ? Theme.accent : Theme.surface-3;
+    animate background { duration: Theme.fast; }
+    Rectangle {
+        width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background: white;
+        x: root.checked ? parent.width - self.width - 3px : 3px;
+        animate x { duration: Theme.fast; easing: ease-out; }
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+    }
+}
+
+export struct MenuEntry {
+    text: string,
+    icon: image,
+}
+
+/// A small floating menu (card context menus).
+export component PopupMenu inherits Rectangle {
+    in property <[MenuEntry]> entries;
+    callback picked(int);
+    width: 220px;
+    height: col.preferred-height;
+    background: Theme.surface-2;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.border-strong;
+    drop-shadow-blur: 24px;
+    drop-shadow-color: #000000c0;
+    col := VerticalLayout {
+        padding: 6px;
+        for e[i] in root.entries: Rectangle {
+            height: 38px;
+            border-radius: Theme.radius-s;
+            background: ta.has-hover ? #ffffff14 : transparent;
+            HorizontalLayout {
+                padding-left: 10px;
+                spacing: 12px;
+                Image {
+                    source: e.icon;
+                    width: 18px;
+                    colorize: Theme.text-2;
+                    y: (parent.height - self.height) / 2;
+                }
+                Text {
+                    text: e.text;
+                    color: Theme.text;
+                    vertical-alignment: center;
+                }
+            }
+            ta := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.picked(i); }
+            }
+        }
+    }
+}
