@@ -467,3 +467,7 @@ secrets.env
 
 # AI assistant notes (local only; .claude/ is ignored above)
 CLAUDE.md
+
+# The Rust app on master: its build output and bundled natives stay in the working tree when switching branches
+/target/
+/runtimes/
