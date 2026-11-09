@@ -63,6 +63,7 @@ fn close_dialogs() {
     win.global::<OpenState>().set_open(false);
     win.global::<DownloadState>().set_open(false);
     win.global::<SubtitlesState>().set_open(false);
+    win.global::<TvState>().set_picker_open(false);
     win.global::<HomeState>().set_results_open(false);
 }
 
@@ -114,13 +115,14 @@ fn full_steps() -> Vec<Step> {
         step("youtube-playlists", 5000, || w().global::<YoutubeState>().invoke_select_filter(2)),
         step("youtube-channel", 7000, || pages::youtube::show_channel(BLENDER_CHANNEL.into(), "Blender".into())),
         // live TV
-        step("tv", 7000, || navigate(Page::Tv)),
+        step("tv", 20000, || navigate(Page::Tv)),
         step("tv-filter", 2000, || {
             let win = w();
             let t = win.global::<TvState>();
             t.set_filter("news".into());
             t.invoke_filter_edited("news".into());
         }),
+        step("tv-picker", 2000, pages::tv::open_first_picker),
         // torrents
         step("torrents", 2500, || navigate(Page::Torrents)),
         step("torrents-search", 9000, || {
@@ -134,6 +136,13 @@ fn full_steps() -> Vec<Step> {
         step("settings-player", 1500, dialogs::settings::open),
         step("settings-downloads", 1000, || w().global::<SettingsState>().set_tab(1)),
         step("settings-torrents", 1000, || w().global::<SettingsState>().set_tab(2)),
+        step("settings-livetv", 1000, || {
+            let win = w();
+            let x = win.global::<SettingsState>();
+            x.set_tab(3);
+            x.set_new_tv_link("https://iptv-org.github.io/iptv/categories/news.m3u".into());
+            x.invoke_add_tv_link();
+        }),
         step("settings-updates", 1000, || w().global::<SettingsState>().set_tab(4)),
         step("open", 1200, || {
             close_dialogs();

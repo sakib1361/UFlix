@@ -51,7 +51,15 @@ pub fn spec(item: &MediaItem) -> CardSpec {
     } else {
         item.year.clone()
     };
-    CardSpec { title: item.title.clone(), subtitle, image_url: item.image.clone(), badge: String::new(), progress, detail: String::new() }
+    CardSpec {
+        title: item.title.clone(),
+        subtitle,
+        image_url: item.image.clone(),
+        badge: String::new(),
+        progress,
+        detail: String::new(),
+        live: false,
+    }
 }
 
 pub fn init() {
@@ -277,6 +285,7 @@ fn search(text: String) {
             badge: String::new(),
             progress: 0.0,
             detail: String::new(),
+            live: false,
         };
         with(|s| {
             let mc = s.movie_cards.clone().unwrap();

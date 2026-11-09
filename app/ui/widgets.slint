@@ -13,6 +13,8 @@ export struct Card {
     progress: float,
     /// Longer text where a layout shows it (episode overviews).
     detail: string,
+    /// A red dot before the subtitle (live TV channels that answer).
+    live: bool,
 }
 
 export component Tooltip inherits Rectangle {
@@ -318,9 +320,18 @@ export component MediaCard inherits Rectangle {
         font-weight: 600;
         overflow: elide;
     }
+    if root.card.live: Rectangle {
+        x: 0;
+        y: root.image-height + 28px + (Theme.font-small * 1.4 - self.height) / 2;
+        width: 8px;
+        height: 8px;
+        border-radius: 4px;
+        background: Theme.accent;
+    }
     Text {
+        x: root.card.live ? 14px : 0;
         y: root.image-height + 28px;
-        width: root.width;
+        width: root.width - self.x;
         text: root.card.subtitle;
         color: Theme.text-3;
         font-size: Theme.font-small;
@@ -359,6 +370,8 @@ export component MediaRow inherits VerticalLayout {
     in property <length> card-width: Theme.poster-width;
     in property <length> image-height: Theme.poster-height;
     in property <image> placeholder: Icons.movie;
+    /// Logos: fit inside the tile instead of cropping.
+    in property <bool> contain;
     callback open(int);
     callback remove(int);
     callback explore();
@@ -420,6 +433,7 @@ export component MediaRow inherits VerticalLayout {
                 image-height: root.image-height;
                 can-delete: root.can-delete;
                 placeholder: root.placeholder;
+                contain: root.contain;
                 clicked => { root.open(i); }
                 remove => { root.remove(i); }
                 context(x, y) => { root.context(i, x, y); }

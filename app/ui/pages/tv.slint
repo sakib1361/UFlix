@@ -1,18 +1,41 @@
-// Live TV: channels from the M3U playlists in Settings, filterable by name.
+// Live TV: channels from the M3U playlists in Settings, filterable by name, each stream checked in the background.
+// A channel with several streams (qualities, mirrors) opens a picker.
 
 import { ScrollView } from "std-widgets.slint";
 import { Theme } from "../theme.slint";
 import { Icons } from "../icons.slint";
-import { Card, CardGrid, SearchField, IconButton, Busy } from "../widgets.slint";
+import { Card, CardGrid, MediaRow, SearchField, IconButton, Busy, Chip, DialogFrame } from "../widgets.slint";
+
+/// One stream of a channel in the picker.
+export struct TvStream {
+    label: string,
+    host: string,
+    /// 0 checking, 1 live, 2 offline
+    status: int,
+}
 
 export global TvState {
     in property <[Card]> channels;
+    /// The last channels played (at most 5), newest first.
+    in property <[Card]> recent;
+    callback open-recent(int);
+    callback remove-recent(int);
     in property <int> total;
     in property <bool> loading;
+    /// Streams checked so far / in all, and the channels found live.
+    in property <int> checked;
+    in property <int> streams;
+    in property <int> live;
     in-out property <string> filter;
+    in-out property <bool> hide-offline;
     callback filter-edited(string);
     callback open(int);
     callback refresh();
+    // stream picker
+    in-out property <bool> picker-open;
+    in property <string> picker-name;
+    in property <[TvStream]> picker-streams;
+    callback pick(int);
 }
 
 export component TvPage inherits Rectangle {
@@ -32,11 +55,24 @@ export component TvPage inherits Rectangle {
                     font-weight: 800;
                 }
                 Text {
-                    text: TvState.loading ? "Loading channels…" : TvState.channels.length + " of " + TvState.total + " channels";
+                    text: TvState.loading ? "Loading channels…"
+                        : TvState.channels.length + " of " + TvState.total + " channels · "
+                            + (TvState.checked < TvState.streams
+                                ? "checking streams " + TvState.checked + "/" + TvState.streams
+                                : TvState.live + " live");
                     color: Theme.text-3;
                 }
             }
             Rectangle { horizontal-stretch: 1; }
+            Chip {
+                text: "Hide offline";
+                selected: TvState.hide-offline;
+                y: (parent.height - self.height) / 2;
+                clicked => {
+                    TvState.hide-offline = !TvState.hide-offline;
+                    TvState.filter-edited(TvState.filter);
+                }
+            }
             SearchField {
                 width: 340px;
                 y: (parent.height - self.height) / 2;
@@ -56,6 +92,25 @@ export component TvPage inherits Rectangle {
             VerticalLayout {
                 padding-bottom: Theme.page-padding;
                 padding-right: Theme.gap;
+                spacing: Theme.gap-l;
+                if TvState.recent.length > 0 && TvState.filter == "": MediaRow {
+                    title: "Recently watched";
+                    cards: TvState.recent;
+                    card-width: 168px;
+                    image-height: 112px;
+                    contain: true;
+                    can-delete: true;
+                    can-explore: false;
+                    placeholder: Icons.live-tv;
+                    open(i) => { TvState.open-recent(i); }
+                    remove(i) => { TvState.remove-recent(i); }
+                }
+                if TvState.recent.length > 0 && TvState.filter == "": Text {
+                    text: "All channels";
+                    color: Theme.text;
+                    font-size: Theme.font-title;
+                    font-weight: 700;
+                }
                 if TvState.loading: Busy {
                     height: 64px;
                 }
@@ -67,6 +122,67 @@ export component TvPage inherits Rectangle {
                     contain: true;
                     placeholder: Icons.live-tv;
                     open(i) => { TvState.open(i); }
+                }
+            }
+        }
+    }
+}
+
+/// Choose one of a channel's streams.
+export component TvStreamPicker inherits DialogFrame {
+    title: TvState.picker-name;
+    card-width: 520px;
+    card-height: Math.min(560px, 96px + TvState.picker-streams.length * 60px);
+    close => { TvState.picker-open = false; }
+    ScrollView {
+        vertical-stretch: 1;
+        VerticalLayout {
+            padding: Theme.gap-m;
+            padding-top: 0;
+            spacing: 4px;
+            alignment: start;
+            for s[i] in TvState.picker-streams: Rectangle {
+                height: 56px;
+                border-radius: Theme.radius-s;
+                background: sta.has-hover ? #ffffff10 : Theme.surface-2;
+                HorizontalLayout {
+                    padding-left: 14px;
+                    padding-right: 14px;
+                    spacing: Theme.gap;
+                    Rectangle {
+                        width: 10px;
+                        height: 10px;
+                        y: (parent.height - self.height) / 2;
+                        border-radius: 5px;
+                        background: s.status == 1 ? Theme.success : s.status == 2 ? Theme.text-3 : Theme.warning;
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        spacing: 2px;
+                        Text {
+                            text: s.label != "" ? s.label : "Stream " + (i + 1);
+                            color: s.status == 2 ? Theme.text-2 : Theme.text;
+                            font-weight: 600;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: (s.status == 1 ? "Live" : s.status == 2 ? "Offline" : "Checking…") + " · " + s.host;
+                            color: Theme.text-3;
+                            font-size: Theme.font-small;
+                            overflow: elide;
+                        }
+                    }
+                    Image {
+                        source: Icons.play;
+                        width: 22px;
+                        y: (parent.height - self.height) / 2;
+                        colorize: sta.has-hover ? Theme.accent-hover : Theme.text-2;
+                    }
+                }
+                sta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { TvState.pick(i); }
                 }
             }
         }

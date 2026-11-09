@@ -103,7 +103,10 @@ export global SettingsState {
     // torrents
     in property <[EngineUrl]> engines;
     // live tv
-    in-out property <string> tv-links;
+    in property <[string]> tv-links;
+    in-out property <string> new-tv-link;
+    callback add-tv-link();
+    callback remove-tv-link(int);
     // updates
     in property <string> version;
     in property <string> update-status;
@@ -269,11 +272,72 @@ export component SettingsDialog inherits DialogFrame {
                 if SettingsState.tab == 3: VerticalLayout {
                     alignment: start;
                     spacing: Theme.gap-l;
-                    Field {
-                        label: "Playlists";
-                        placeholder: "https://iptv-org.github.io/iptv/countries/bd.m3u";
-                        hint: "Comma-separated M3U playlist URLs for Live TV.";
-                        text <=> SettingsState.tv-links;
+                    HorizontalLayout {
+                        spacing: Theme.gap-s;
+                        Field {
+                            horizontal-stretch: 1;
+                            label: "Add a playlist";
+                            placeholder: "https://…/playlist.m3u";
+                            text <=> SettingsState.new-tv-link;
+                            accepted => { SettingsState.add-tv-link(); }
+                        }
+                        Button {
+                            text: "Add";
+                            kind: ButtonKind.tonal;
+                            has-icon: true;
+                            icon: Icons.add;
+                            enabled: SettingsState.new-tv-link != "";
+                            y: parent.height - self.height - 1px;
+                            clicked => { SettingsState.add-tv-link(); }
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: 4px;
+                        Text {
+                            text: "Playlists";
+                            color: Theme.text-2;
+                            font-weight: 600;
+                        }
+                        if SettingsState.tv-links.length == 0: Text {
+                            text: "None added: Live TV uses iptv-org's Bangladesh list.";
+                            color: Theme.text-3;
+                            font-size: Theme.font-small;
+                        }
+                        for l[i] in SettingsState.tv-links: Rectangle {
+                            height: 44px;
+                            border-radius: Theme.radius-s;
+                            background: Theme.surface-2;
+                            HorizontalLayout {
+                                padding-left: 12px;
+                                padding-right: 4px;
+                                spacing: Theme.gap-s;
+                                Image {
+                                    source: Icons.link;
+                                    width: 18px;
+                                    colorize: Theme.text-3;
+                                    y: (parent.height - self.height) / 2;
+                                }
+                                Text {
+                                    text: l;
+                                    color: Theme.text;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                    horizontal-stretch: 1;
+                                }
+                                IconButton {
+                                    icon: Icons.delete;
+                                    tooltip: "Remove";
+                                    y: (parent.height - self.height) / 2;
+                                    clicked => { SettingsState.remove-tv-link(i); }
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        text: "M3U playlists for Live TV. Channels with the same name are merged; their streams are checked when the page loads.";
+                        color: Theme.text-3;
+                        font-size: Theme.font-small;
+                        wrap: word-wrap;
                     }
                 }
                 if SettingsState.tab == 4: VerticalLayout {

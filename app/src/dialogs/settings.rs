@@ -5,12 +5,13 @@ use crate::services::updater::{self, Outcome};
 use crate::ui::{self, EngineUrl, SettingsState};
 use engine::search::Engine;
 use engine::settings as s;
-use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
+use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 thread_local! {
     static ENGINE_URLS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static TV_LINKS: RefCell<Option<Rc<VecModel<SharedString>>>> = const { RefCell::new(None) };
 }
 
 fn st<R>(f: impl FnOnce(&SettingsState) -> R) -> R {
@@ -32,6 +33,14 @@ pub fn init() {
                     *slot = url.to_string();
                 }
             })
+        });
+        x.on_add_tv_link(add_tv_link);
+        x.on_remove_tv_link(|i| {
+            if let Some(m) = tv_links()
+                && (i as usize) < m.row_count()
+            {
+                m.remove(i as usize);
+            }
         });
         x.on_check_updates(check);
         x.on_install_update(install);
@@ -57,7 +66,11 @@ pub fn open() {
         x.set_max_folder_size(format!("{}", s::max_folder_size()).into());
         x.set_ytdl_first(s::use_ytdl_first());
         x.set_engines(ModelRc::from(Rc::new(VecModel::from(engines))));
-        x.set_tv_links(s::tv_links().into());
+        let links: Vec<SharedString> = engine::tv::links().into_iter().map(Into::into).collect();
+        let model = Rc::new(VecModel::from(links));
+        TV_LINKS.with(|t| *t.borrow_mut() = Some(model.clone()));
+        x.set_tv_links(ModelRc::from(model));
+        x.set_new_tv_link(SharedString::new());
         x.set_daily_check(s::check_updates_daily());
         x.set_can_update(updater::REPO.is_some());
         x.set_update_status(
@@ -91,7 +104,13 @@ fn save() {
         s::set_youtube_download_path(x.get_youtube_folder().trim().to_string());
         s::set_max_folder_size(x.get_max_folder_size().trim().parse().unwrap_or(0).max(0));
         s::set_use_ytdl_first(x.get_ytdl_first());
-        s::set_tv_links(x.get_tv_links().trim().to_string());
+        add_tv_link(); // a link typed but not added yet still counts
+        let links: Vec<String> = tv_links().map(|m| m.iter().map(|l| l.to_string()).collect()).unwrap_or_default();
+        let links = links.join(",");
+        if links != s::tv_links() {
+            s::set_tv_links(links);
+            crate::pages::tv::links_changed();
+        }
         s::set_check_updates_daily(x.get_daily_check());
         x.set_open(false);
     });
@@ -99,6 +118,22 @@ fn save() {
         e.set_url(url.trim());
     }
     ui::toast("Settings saved. Subtitle style applies to the next video.");
+}
+
+fn tv_links() -> Option<Rc<VecModel<SharedString>>> {
+    TV_LINKS.with(|t| t.borrow().clone())
+}
+
+/// Adds the typed playlist link(s) to the list; commas would break the stored list, so they split links.
+fn add_tv_link() {
+    let typed = st(|x| x.get_new_tv_link()).to_string();
+    let Some(model) = tv_links() else { return };
+    for link in engine::tv::split_links(&typed) {
+        if !model.iter().any(|l| l == link.as_str()) {
+            model.push(link.into());
+        }
+    }
+    st(|x| x.set_new_tv_link(SharedString::new()));
 }
 
 fn pick_folder(which: String) {

@@ -15,6 +15,7 @@ pub struct CardSpec {
     pub badge: String,
     pub progress: f32,
     pub detail: String,
+    pub live: bool,
 }
 
 pub fn card(spec: &CardSpec) -> Card {
@@ -25,6 +26,7 @@ pub fn card(spec: &CardSpec) -> Card {
         badge: SharedString::from(spec.badge.as_str()),
         progress: spec.progress,
         detail: SharedString::from(spec.detail.as_str()),
+        live: spec.live,
     }
 }
 
@@ -55,6 +57,14 @@ impl CardList {
     pub fn remove(&self, index: usize) {
         if index < self.model.row_count() {
             self.model.remove(index);
+        }
+    }
+
+    /// Changes a card in place (keeping its loaded image).
+    pub fn update(&self, index: usize, f: impl FnOnce(&mut Card)) {
+        if let Some(mut c) = self.model.row_data(index) {
+            f(&mut c);
+            self.model.set_row_data(index, c);
         }
     }
 

@@ -97,6 +97,17 @@ the next start. The session listens for incoming peers (TCP, UPnP) and starts on
 - Free the render context on the GL thread before destroying mpv; destroy is quit → join the event thread →
   `mpv_terminate_destroy`. One mpv instance lives for the whole run (stopped, not destroyed, between videos).
 - Never call libmpv from a `stream_cb` callback; always give it a cancel function.
+**Live TV** (`engine::tv`, `pages/tv.rs`)
+- Playlists are a list in Settings → Live TV, stored comma-separated in `TvLinks` (none ⇒ iptv-org's `bd.m3u`).
+- Entries whose names differ only by quality/tags (`(720p)`, `(HD)`, `[Geo-blocked]`) merge into one channel; other
+  parentheses stay ("Channel S (Bangladesh)"). A channel with several streams opens a picker. iptv-org's own lists are
+  already de-duplicated, so merging matters for third-party playlists.
+- After loading, every stream is probed 10 at a time (`probe_all`: 2xx + first bytes, `#EXTM3U` for HLS, 10 s);
+  cards show Live/Offline and "Hide offline" drops dead channels. A reload aborts the running probes.
+- "Recently watched" on the Live TV page (not Home): the last 5 channels played (`TvRecent`, one per channel name, the
+  exact stream replayed), with the live status once the probes reach that stream.
+- `#EXTVLCOPT` header lines are skipped, not passed to mpv: streams that need a referrer/user agent show as offline.
+
 - Per-file `loadfile` options use `%len%value` quoting; external audio/subtitles are added after `FILE_LOADED`.
 - `keep-open=yes` ⇒ EOF comes from `eof-reached`.
 
