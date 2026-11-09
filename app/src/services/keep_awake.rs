@@ -1,6 +1,7 @@
 //! Keeps the screen on while video plays. Linux: org.freedesktop.ScreenSaver.Inhibit on the session bus, else the
 //! xdg-desktop-portal Inhibit (idle + suspend). Windows: SetThreadExecutionState. The D-Bus work runs off the UI thread.
 
+#[cfg(target_os = "linux")]
 use std::sync::Mutex;
 
 #[cfg(target_os = "linux")]

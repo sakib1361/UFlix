@@ -25,11 +25,12 @@ runs:
 
     - uses: Swatinem/rust-cache@v2
 
-    # Slint's winit/femtovg backend links fontconfig and xkbcommon
+    # Slint's winit/femtovg backend links fontconfig and xkbcommon; appimagetool validates the .desktop file with
+    # desktop-file-validate (desktop-file-utils) and fails without it
     - name: Linux build packages
       if: runner.os == 'Linux'
       shell: bash
-      run: sudo apt-get update -q && sudo apt-get install -y -q libfontconfig1-dev libxkbcommon-dev
+      run: sudo apt-get update -q && sudo apt-get install -y -q libfontconfig1-dev libxkbcommon-dev desktop-file-utils
 
     # secrets.env is git-ignored and compiled into the app by crates/engine/build.rs (see secrets.env.example)
     - name: Write secrets.env

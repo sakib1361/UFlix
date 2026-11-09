@@ -20,8 +20,11 @@ anyhow = "1"
 arboard = { version = "3", default-features = false, features = ["wayland-data-control"] }
 open = "5"
 rfd = "0.18"
-zbus = "5"
 sha2 = "0.10"
+
+# D-Bus for keep-awake (screen saver / portal inhibit)
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "5"
 
 [build-dependencies]
 slint-build = "1.18"

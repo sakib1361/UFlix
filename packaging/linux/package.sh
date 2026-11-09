@@ -7,6 +7,8 @@ cd "$root"
 version=${VERSION:-$(tr -d '[:space:]' < VERSION)}
 natives=runtimes/linux-x64/native
 [ -f "$natives/libmpv.so.2" ] || { echo "package: $natives/libmpv.so.2 missing (run Native/natives.sh fetch)" >&2; exit 1; }
+# appimagetool validates the .desktop file with it and fails without it: check before the long build
+command -v desktop-file-validate >/dev/null || { echo "package: desktop-file-validate missing (install desktop-file-utils)" >&2; exit 1; }
 
 UFLIX_VERSION="$version" cargo build --release --locked -p uflix
 
