@@ -424,14 +424,73 @@ fn open_torrent(seq: u64, item: MediaItem, start: Option<f64>) {
             s.torrent = Some(TorrentPlay { url: item.url.clone(), handle: handle.clone(), files: files.clone(), index });
         });
         if files.len() > 1 {
+            let images = file_images(&item, &handle, &files).await;
             let items: Vec<MediaItem> = files
                 .iter()
-                .map(|f| MediaItem { title: f.name().to_string(), author: torrent::readable_size(f.size), ..Default::default() })
+                .zip(images)
+                .map(|(f, image)| MediaItem {
+                    title: f.name().to_string(),
+                    author: torrent::readable_size(f.size),
+                    image,
+                    ..Default::default()
+                })
                 .collect();
             set_queue(Queue::Files, items, index, "Files in this torrent");
         }
         play_torrent_file(seq, index, start);
     });
+}
+
+/// A picture per torrent file for the side panel: the episode's TMDB still for a show (by the file's SxxEyy), else a
+/// frame of the file once it is fully downloaded, else the title's backdrop or poster.
+async fn file_images(item: &MediaItem, handle: &torrent::Torrent, files: &[torrent::TorrentFile]) -> Vec<String> {
+    let fallback = if item.backdrop.is_empty() { item.image.clone() } else { item.backdrop.clone() };
+    let parsed: Vec<engine::parse::ParsedName> = files.iter().map(|f| engine::parse::parse_name(f.name())).collect();
+    let progress = handle.status().file_progress;
+    let local: Vec<Option<String>> = files
+        .iter()
+        .map(|f| {
+            let done = progress.get(f.index).copied().unwrap_or(0) >= f.size;
+            done.then(|| handle.file_path(f).to_string_lossy().into_owned())
+        })
+        .collect();
+    let (show_id, is_show) = (item.tmdb_id, item.content_type == ContentType::Shows);
+    let seasons: Vec<i32> = {
+        let mut s: Vec<i32> = parsed.iter().filter_map(|p| p.season).collect();
+        s.sort_unstable();
+        s.dedup();
+        s
+    };
+    let stills: std::collections::HashMap<(i32, i32), String> = if is_show && show_id > 0 {
+        bg(async move {
+            let mut map = std::collections::HashMap::new();
+            for n in seasons {
+                if let Some(season) = engine::tmdb::season(show_id, n).await {
+                    for e in season.episodes {
+                        let url = engine::tmdb::image(engine::tmdb::IMAGE_300, &e.still_path);
+                        if !url.is_empty() {
+                            map.insert((e.season_number, e.episode_number), url);
+                        }
+                    }
+                }
+            }
+            map
+        })
+        .await
+    } else {
+        Default::default()
+    };
+    parsed
+        .iter()
+        .zip(local)
+        .map(|(p, local)| {
+            let still = match (p.season, p.episode) {
+                (Some(s), Some(e)) => stills.get(&(s, e)).cloned(),
+                _ => None,
+            };
+            still.or(local).unwrap_or_else(|| fallback.clone())
+        })
+        .collect()
 }
 
 /// The file to play: the one played before, the matching episode of a show, else the largest video.

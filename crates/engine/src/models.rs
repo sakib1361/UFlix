@@ -61,8 +61,16 @@ impl MediaItem {
         }
     }
 
-    /// The key the watchlist matches on.
+    /// The key the watchlist matches on. A show is one entry whichever episode was played last.
     pub fn key(&self) -> String {
+        if self.content_type == ContentType::Shows {
+            if self.tmdb_id > 0 {
+                return format!("show:{}", self.tmdb_id);
+            }
+            if !self.id.is_empty() {
+                return format!("show:{}", self.id);
+            }
+        }
         if self.id.is_empty() { self.url.clone() } else { format!("{}|{}", self.id, self.title) }
     }
 }

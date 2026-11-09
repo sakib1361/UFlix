@@ -197,14 +197,11 @@ impl Engine {
 
     /// Adds a magnet link, http(s) .torrent URL or local .torrent file, or returns the torrent if it is already in the
     /// session. Waits until its metadata (file list) is known. `only` selects the files to download (None = all).
-    pub async fn add(&self, url: &str, folder: &Path, only: Option<Vec<usize>>) -> Result<Torrent> {
+    /// Files go under the session's folder: a multi-file torrent in a folder named after it, a single file as is
+    /// (libtorrent's layout, so downloads made by either are found again).
+    pub async fn add(&self, url: &str, only: Option<Vec<usize>>) -> Result<Torrent> {
         let source = if Path::new(url).is_file() { AddTorrent::from_local_filename(url).map_err(err)? } else { AddTorrent::from_url(url) };
-        let options = AddTorrentOptions {
-            output_folder: Some(folder.to_string_lossy().into_owned()),
-            overwrite: true,
-            only_files: only,
-            ..Default::default()
-        };
+        let options = AddTorrentOptions { overwrite: true, only_files: only, ..Default::default() };
         let response = self.session.add_torrent(source, Some(options)).await.map_err(err)?;
         let handle = match response {
             AddTorrentResponse::Added(_, h) | AddTorrentResponse::AlreadyManaged(_, h) => h,

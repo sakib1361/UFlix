@@ -41,6 +41,7 @@ export component IconButton inherits Rectangle {
     in property <string> tooltip;
     /// Where the tooltip opens: above for the player bar, below elsewhere.
     in property <bool> tooltip-above;
+    out property <bool> hovered: ta.has-hover;
     callback clicked;
     width: root.size;
     height: root.size;
@@ -334,7 +335,9 @@ export component MediaCard inherits Rectangle {
             }
         }
     }
-    if root.can-delete && ta.has-hover: IconButton {
+    remove-button := IconButton {
+        // shown while the card or the button is hovered (the button takes the hover from the card)
+        visible: root.can-delete && (ta.has-hover || self.hovered);
         x: 6px;
         y: 6px;
         icon: Icons.close;

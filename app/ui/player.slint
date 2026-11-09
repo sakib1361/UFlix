@@ -245,8 +245,11 @@ component AdvancedPanel inherits Panel {
 }
 
 component MenuPanel inherits Panel {
-    width: 320px;
-    height: Math.min(layout.preferred-height, 460px);
+    /// The room above the control bar.
+    in property <length> room: 460px;
+    width: 340px;
+    // sized from the entries (the list scrolls, so it can't size the panel), up to the room available
+    height: Math.min(root.room, 56px + PlayerState.menu-items.length * 38px + (PlayerState.menu == "subs" ? 48px : 0px) + 16px);
     layout := VerticalLayout {
         padding: Theme.gap-s;
         spacing: 2px;
@@ -260,6 +263,7 @@ component MenuPanel inherits Panel {
             x: 10px;
         }
         ScrollView {
+            vertical-stretch: 1;
             VerticalLayout {
                 for item[i] in PlayerState.menu-items: MenuRow {
                     item: item;
@@ -669,6 +673,14 @@ export component PlayerPage inherits Rectangle {
                             clicked => { PlayerState.prev(); }
                         }
                         IconButton {
+                            icon: Icons.stop;
+                            tint: white;
+                            tooltip: "Stop";
+                            tooltip-above: true;
+                            y: (parent.height - self.height) / 2;
+                            clicked => { PlayerState.close(); }
+                        }
+                        IconButton {
                             icon: PlayerState.paused ? Icons.play : Icons.pause;
                             size: 44px;
                             icon-size: 28px;
@@ -800,6 +812,7 @@ export component PlayerPage inherits Rectangle {
                 y: parent.height - self.height - 112px;
             }
             if PlayerState.menu != "" && PlayerState.menu != "advanced": MenuPanel {
+                room: parent.height - 112px - 24px;
                 x: parent.width - self.width - Theme.gap-l;
                 y: parent.height - self.height - 112px;
             }

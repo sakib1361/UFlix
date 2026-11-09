@@ -5,8 +5,10 @@ use crate::models::{MediaItem, MediaType};
 
 const KEY: &str = "ContinueWatch";
 
+/// Newest first, one entry per key (older duplicates, e.g. earlier episodes of a show, are dropped).
 pub fn items() -> Vec<MediaItem> {
-    db().get::<Vec<MediaItem>>(KEY).unwrap_or_default()
+    let mut seen = std::collections::HashSet::new();
+    db().get::<Vec<MediaItem>>(KEY).unwrap_or_default().into_iter().filter(|m| seen.insert(m.key())).collect()
 }
 
 /// Records `media` as just played (IPTV channels are never saved).
@@ -30,8 +32,8 @@ pub fn remove(media: &MediaItem) {
     db().set(KEY, &list);
 }
 
-/// The saved position of `media`, if it was played before.
+/// The saved position of `media`, if it was played before (for a show, only if it is the same episode).
 pub fn position_of(media: &MediaItem) -> Option<f64> {
     let key = media.key();
-    items().into_iter().find(|x| x.key() == key).map(|x| x.position).filter(|p| *p > 5.0)
+    items().into_iter().find(|x| x.key() == key && x.title == media.title).map(|x| x.position).filter(|p| *p > 5.0)
 }

@@ -32,7 +32,7 @@ pub fn start() {
     handle().spawn(async move {
         let Ok(e) = engine().await else { return };
         for t in tracked {
-            let _ = e.add(&t.url, std::path::Path::new(&t.save_path), None).await;
+            let _ = e.add(&t.url, None).await;
         }
     });
 }
@@ -66,7 +66,7 @@ fn kind_of(url: &str) -> Option<TorrentKind> {
 pub async fn open(url: String, title: String) -> Result<Torrent, String> {
     bg(async move {
         let e = engine().await?;
-        let t = e.add(&url, &engine::paths::torrent_folder(), None).await?;
+        let t = e.add(&url, None).await?;
         track(&url, &title, TorrentKind::Play);
         Ok(t)
     })
@@ -98,7 +98,7 @@ pub fn download(url: &str, title: &str) {
     handle().spawn(async move {
         let result = async {
             let e = engine().await?;
-            let t = e.add(&url, &engine::paths::torrent_folder(), None).await?;
+            let t = e.add(&url, None).await?;
             let all: Vec<usize> = t.files().iter().map(|f| f.index).collect();
             t.select_files(&all).await?;
             t.resume().await.ok();

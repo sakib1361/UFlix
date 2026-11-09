@@ -15,24 +15,22 @@ the controls are drawn on top of it in the same frame, so overlays stay transluc
 | Home | Search, with Movies and Shows tabs |
 |---|---|
 | ![Home page with rows of popular movies and shows](screenshots/home.jpg) | ![Search results split into Movies and Shows tabs](screenshots/search-movies.jpg) |
-| **Discover** | **A genre** |
-| ![Discover: popular movies as a poster grid](screenshots/discover-movies.jpg) | ![Discover: one genre of shows](screenshots/discover-genre.jpg) |
+| **Discover: movies** | **Discover: shows** |
+| ![Discover: popular movies as a poster grid](screenshots/discover-movies.jpg) | ![Discover: popular shows with the genre chips](screenshots/discover-shows.jpg) |
 | **A movie: details, cast and sources by quality** | **A show: seasons, episodes and sources** |
 | ![Movie dialog with cast and torrent sources grouped by quality](screenshots/movie.jpg) | ![Show dialog with episodes and their sources](screenshots/show-episode.jpg) |
 | **YouTube** | **A YouTube channel** |
 | ![YouTube home: topics and a For you feed](screenshots/youtube.jpg) | ![A YouTube channel's uploads](screenshots/youtube-channel.jpg) |
-| **Live TV** | **Torrents: search and downloads** |
-| ![Live TV channels from M3U playlists](screenshots/tv.jpg) | ![Torrent search results with Play and Download](screenshots/torrents-search.jpg) |
-| **Player** | **Advanced controls: speed and picture** |
-| ![The player with translucent controls over the video](screenshots/player-controls.jpg) | ![Advanced controls: speed, brightness, contrast, saturation, gamma](screenshots/player-advanced.jpg) |
-| **Info panel** | **YouTube in the player, with Up next** |
-| ![Player info: codecs, resolution, hardware decoder, cache](screenshots/player-info.jpg) | ![A YouTube video with details and Up next](screenshots/player-youtube.jpg) |
-| **Subtitles menu** | **Continue watching** |
-| ![Subtitles menu: tracks, captions, online search, delay](screenshots/player-subtitles.jpg) | ![Home with Continue watching](screenshots/home-continue.jpg) |
-| **Settings** | **Download with yt-dlp** |
-| ![Settings: player tab](screenshots/settings-player.jpg) | ![Download dialog with formats](screenshots/download.jpg) |
+| **Torrents: search and downloads** | **Settings** |
+| ![Torrent search results with Play and Download](screenshots/torrents-search.jpg) | ![Settings: the Downloads tab](screenshots/settings-downloads.jpg) |
+| **Advanced controls: speed and picture** | **Info panel** |
+| ![Advanced controls: speed, brightness, contrast, saturation, gamma](screenshots/player-advanced.jpg) | ![Player info: codecs, resolution, hardware decoder, cache](screenshots/player-info.jpg) |
 
-More in [screenshots/](screenshots/). *Player screenshots: [Big Buck Bunny](https://peach.blender.org/) © 2008 Blender
+**YouTube in the player, with details and Up next**
+
+![A YouTube video playing with its details and Up next in the side panel](screenshots/player-youtube.jpg)
+
+*Player screenshots: [Big Buck Bunny](https://peach.blender.org/) © 2008 Blender
 Foundation, [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), streamed from the
 [Internet Archive](https://archive.org/details/BigBuckBunny_124) and YouTube.*
 
