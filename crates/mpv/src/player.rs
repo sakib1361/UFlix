@@ -58,7 +58,11 @@ pub enum Event {
     Volume(f64),
     SubDelay(f64),
     Tracks(Vec<Track>),
-    Hwdec(String),
+    /// `hwdec-current` ("" when no video decoder, "no" for software) and the GPU interop mpv has loaded for it.
+    Hwdec {
+        current: String,
+        interop: String,
+    },
     FileLoaded,
     Ended(EndReason, String),
     Log(String),
@@ -252,6 +256,10 @@ impl Player {
     pub fn stop(&self) {
         self.command(&["stop"]);
     }
+    /// Like [`Player::stop`] but doesn't wait for the core (for shutdown, where a stuck core must not block exit).
+    pub fn stop_async(&self) {
+        command_async(&self.shared.h, &["stop"]);
+    }
     pub fn seek(&self, seconds: f64, exact: bool) {
         self.command(&["seek", &format!("{:.3}", seconds.max(0.0)), if exact { "absolute+exact" } else { "absolute+keyframes" }]);
     }
@@ -281,16 +289,7 @@ impl Player {
     }
 
     pub fn get_property(&self, name: &str) -> Option<String> {
-        let a = api().ok()?;
-        unsafe {
-            let p = (a.get_property_string)(self.raw(), cstr(name).as_ptr());
-            if p.is_null() {
-                return None;
-            }
-            let s = CStr::from_ptr(p).to_string_lossy().into_owned();
-            (a.free)(p as *mut c_void);
-            Some(s)
-        }
+        get_string(&self.shared.h, name)
     }
 
     pub fn get_double(&self, name: &str) -> Option<f64> {
@@ -332,6 +331,28 @@ fn command(h: &Handle, args: &[&str], log: &(dyn Fn(Event) + Send + Sync)) -> c_
     r
 }
 
+/// Queues a command without waiting for the core (mpv copies the arguments; the reply event is ignored).
+fn command_async(h: &Handle, args: &[&str]) -> c_int {
+    let Ok(a) = api() else { return ffi::ERROR_GENERIC };
+    let owned: Vec<CString> = args.iter().map(|s| cstr(s)).collect();
+    let mut ptrs: Vec<*const c_char> = owned.iter().map(|c| c.as_ptr()).collect();
+    ptrs.push(std::ptr::null());
+    unsafe { (a.command_async)(h.0, 0, ptrs.as_ptr()) }
+}
+
+fn get_string(h: &Handle, name: &str) -> Option<String> {
+    let a = api().ok()?;
+    unsafe {
+        let p = (a.get_property_string)(h.0, cstr(name).as_ptr());
+        if p.is_null() {
+            return None;
+        }
+        let s = CStr::from_ptr(p).to_string_lossy().into_owned();
+        (a.free)(p as *mut c_void);
+        Some(s)
+    }
+}
+
 /// mpv's %length%value quoting: values may contain commas, colons or '=' (URLs, titles).
 fn file_opt(name: &str, value: &str) -> String {
     format!("{name}=%{}%{value}", value.len())
@@ -340,19 +361,26 @@ fn file_opt(name: &str, value: &str) -> String {
 impl Drop for Player {
     /// quit → join the event thread → destroy. Destroying first can hang or crash with a live VO or stream callback.
     /// Free any render context (on the GL thread) before dropping the player.
+    /// If the core doesn't quit (a decoder stuck in a GPU driver), mpv is left to process exit instead of hanging here.
     fn drop(&mut self) {
         let Ok(a) = api() else { return };
-        command(&self.shared.h, &["quit"], &|_| {});
+        // async: a synchronous command would wait for the core forever if it is stuck
+        command_async(&self.shared.h, &["quit"]);
         if let Some(t) = self.thread.take() {
             let deadline = std::time::Instant::now() + Duration::from_secs(5);
             while !t.is_finished() && std::time::Instant::now() < deadline {
                 unsafe { (a.wakeup)(self.shared.h.0) };
                 std::thread::sleep(Duration::from_millis(20));
             }
+            if !t.is_finished() {
+                // terminate_destroy would block on the same stuck core; the OS reclaims everything at exit
+                eprintln!("[mpv] the core did not quit within 5 s; not destroying it");
+                return;
+            }
             let _ = t.join();
         }
         unsafe { (a.terminate_destroy)(self.shared.h.0) };
-        if let Some(uri) = self.shared.load.lock().unwrap().stream_uri.take() {
+        if let Some(uri) = self.shared.load.lock().unwrap_or_else(|e| e.into_inner()).stream_uri.take() {
             stream::remove(&uri);
         }
     }
@@ -464,7 +492,7 @@ fn event_loop(s: &Shared) {
                 if none {
                     match ev.reply_userdata {
                         P_TRACKS => emit(Event::Tracks(Vec::new())),
-                        P_HWDEC => emit(Event::Hwdec(String::new())),
+                        P_HWDEC => emit(Event::Hwdec { current: String::new(), interop: String::new() }),
                         _ => {}
                     }
                     continue;
@@ -482,7 +510,12 @@ fn event_loop(s: &Shared) {
                     P_TRACKS => emit(Event::Tracks(parse_tracks(&string()))),
                     P_VOLUME => emit(Event::Volume(dbl())),
                     P_SUBDELAY => emit(Event::SubDelay(dbl())),
-                    P_HWDEC => emit(Event::Hwdec(string())),
+                    P_HWDEC => {
+                        let current = string();
+                        let hw = !current.is_empty() && current != "no";
+                        let interop = if hw { get_string(&s.h, "hwdec-interop").unwrap_or_default() } else { String::new() };
+                        emit(Event::Hwdec { current, interop })
+                    }
                     _ => {}
                 }
             },

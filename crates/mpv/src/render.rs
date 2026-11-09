@@ -14,8 +14,9 @@ pub enum NativeDisplay {
 
 type Callback = Box<dyn Fn() + Send + Sync>;
 
+/// Runs on an mpv thread. A panic must not unwind into libmpv: it would abort the process.
 unsafe extern "C" fn call(ctx: *mut c_void) {
-    unsafe { (*(ctx as *const Callback))() }
+    let _ = std::panic::catch_unwind(|| unsafe { (*(ctx as *const Callback))() });
 }
 
 pub struct RenderContext {
@@ -27,11 +28,13 @@ pub struct RenderContext {
 impl RenderContext {
     pub fn new(player: &Player, get_proc_address: &dyn Fn(&CStr) -> *const c_void, display: Option<NativeDisplay>) -> Result<Self, String> {
         let a = api()?;
+        // called by libmpv: a panic in the embedder's loader becomes "function not found" instead of an abort
         unsafe extern "C" fn trampoline(ctx: *mut c_void, name: *const c_char) -> *mut c_void {
-            unsafe {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsafe {
                 let f = &*(ctx as *const &dyn Fn(&CStr) -> *const c_void);
                 f(CStr::from_ptr(name)) as *mut c_void
-            }
+            }))
+            .unwrap_or(std::ptr::null_mut())
         }
         // mpv resolves every GL function inside render_context_create, so the loader only has to live for this call
         let loader: &dyn Fn(&CStr) -> *const c_void = get_proc_address;

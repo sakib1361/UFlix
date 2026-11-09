@@ -153,6 +153,14 @@ pub fn record_progress(url: &str, progress: f64) {
     }
 }
 
+/// Session counters, if the session has started (diagnostics; safe from any thread).
+pub fn stats() -> Option<torrent::SessionStats> {
+    match ENGINE.get() {
+        Some(Ok(e)) => Some(e.stats()),
+        _ => None,
+    }
+}
+
 /// Stops the session (saves fast-resume state). Call at exit.
 pub fn shutdown() {
     if let Some(Ok(e)) = ENGINE.get() {

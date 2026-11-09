@@ -6,10 +6,17 @@ use crate::ui::AppWindow;
 use mpv::{Event, NativeDisplay, Options, Player, RenderContext};
 use slint::{ComponentHandle, GraphicsAPI, RenderingState};
 use std::cell::{Cell, RefCell};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{Duration, Instant};
 
-static PLAYER: OnceLock<Result<Arc<Player>, String>> = OnceLock::new();
+/// None until first use; taken by [`shutdown`] so mpv is destroyed before the process exits.
+static PLAYER: Mutex<Option<Result<Arc<Player>, String>>> = Mutex::new(None);
+static SHUT_DOWN: AtomicBool = AtomicBool::new(false);
+
+fn slot() -> MutexGuard<'static, Option<Result<Arc<Player>, String>>> {
+    PLAYER.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 thread_local! {
     /// Draw the video only while the player page is open.
@@ -32,8 +39,11 @@ pub async fn ready() {
 
 /// The mpv player, created on first use.
 pub fn player() -> Result<Arc<Player>, String> {
-    PLAYER
-        .get_or_init(|| {
+    if SHUT_DOWN.load(Ordering::Acquire) {
+        return Err("the player has shut down".into());
+    }
+    slot()
+        .get_or_insert_with(|| {
             let s = engine::settings::subtitle_font_size();
             let mut extra: Vec<(String, String)> = vec![
                 ("sub-font-size".into(), format!("{s}")),
@@ -52,9 +62,59 @@ pub fn player() -> Result<Arc<Player>, String> {
             if let Ok(log) = std::env::var("UFLIX_MPV_LOG") {
                 extra.push(("log-file".into(), log));
             }
-            Player::new(Options { extra, ..Default::default() }, forward).map(Arc::new)
+            let mut options = Options { extra, ..Default::default() };
+            // diagnostics: UFLIX_HWDEC=nvdec|nvdec-copy|vaapi|vaapi-copy|no|... replaces the default
+            if let Some(hwdec) = std::env::var("UFLIX_HWDEC").ok().filter(|v| !v.trim().is_empty()) {
+                eprintln!("[uflix] hwdec={hwdec} (UFLIX_HWDEC)");
+                options.hwdec = hwdec;
+            }
+            Player::new(options, forward).map(Arc::new)
         })
         .clone()
+}
+
+/// The player if it has been created (never creates it). For diagnostics on other threads.
+pub fn existing() -> Option<Arc<Player>> {
+    slot().as_ref()?.as_ref().ok().cloned()
+}
+
+/// Ends mpv before the process exits, in the order libmpv needs: stop → free the render context (on this thread, which
+/// owns the GL context, while it still exists) → quit → join the event thread → destroy. Call on the UI thread once the
+/// event loop has returned; it takes the window because dropping the last handle is what makes Slint tear down GL
+/// (`RenderingTeardown` below frees the render context). Without this mpv's threads kept running through exit handlers.
+pub fn shutdown(window: AppWindow) {
+    SHUT_DOWN.store(true, Ordering::Release);
+    ACTIVE.with(|a| a.set(false));
+    let player = slot().take().and_then(Result::ok);
+    if let Some(p) = &player {
+        p.stop_async();
+    }
+    let _ = window.hide();
+    drop(window);
+    WAITERS.with(|w| w.borrow_mut().clear());
+    let Some(mut p) = player else { return };
+    if RENDER.with(|r| r.borrow().is_some()) {
+        // libmpv: freeing the core before its render context is undefined behaviour; leave both to process exit
+        eprintln!("mpv: the render context outlived the window; not destroying mpv");
+        std::mem::forget(p);
+        return;
+    }
+    // another thread (UFLIX_MEMLOG) may hold a clone for a moment
+    let deadline = Instant::now() + Duration::from_secs(1);
+    loop {
+        match Arc::try_unwrap(p) {
+            Ok(player) => return drop(player),
+            Err(still) if Instant::now() < deadline => {
+                p = still;
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(still) => {
+                eprintln!("mpv: still in use at exit; not destroying it");
+                std::mem::forget(still);
+                return;
+            }
+        }
+    }
 }
 
 /// The saved volume, or $UFLIX_TEST_VOLUME for test runs (never saved).
@@ -73,6 +133,9 @@ fn forward(e: Event) {
         }
         LAST_POS.store(p.to_bits(), Ordering::Relaxed);
     }
+    if let Event::Hwdec { current, interop } = &e {
+        log_hwdec(current, interop);
+    }
     if let Event::Log(line) = &e {
         if std::env::var_os("UFLIX_DEBUG").is_some() {
             eprintln!("{line}");
@@ -80,6 +143,21 @@ fn forward(e: Event) {
         return;
     }
     ui(move || super::session::on_event(e));
+}
+
+/// One line per file: which decoder and GPU interop mpv picked (hwdec-current is unset between files).
+fn log_hwdec(current: &str, interop: &str) {
+    static LAST: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+    let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+    if current == *last {
+        return;
+    }
+    *last = current.to_string();
+    match current {
+        "" => {}
+        "no" => eprintln!("[uflix] video decoder: software"),
+        _ => eprintln!("[uflix] video decoder: {current} (interop: {})", if interop.is_empty() { "none" } else { interop }),
+    }
 }
 
 pub fn set_active(active: bool) {

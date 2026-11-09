@@ -4,6 +4,7 @@
 //! UFlix: movies, shows, torrents, YouTube and live TV, played by mpv inside a Slint UI.
 
 mod cards;
+mod diag;
 mod dialogs;
 mod images;
 mod open;
@@ -36,6 +37,7 @@ pub fn navigate(page: Page) {
 
 fn main() -> anyhow::Result<()> {
     runtime::init();
+    diag::start();
     // The femtovg renderer runs on OpenGL, which mpv's render API draws the video into.
     slint::BackendSelector::new().require_opengl().select()?;
 
@@ -78,8 +80,12 @@ fn main() -> anyhow::Result<()> {
     }
     // start maximized, like the C# app (a fixed size can be taller than a small or scaled screen)
     window.window().set_maximized(true);
-    window.run()?;
+    // not window.run(): it hides the window (on Wayland that tears down GL) before playback could be stopped
+    window.show()?;
+    slint::run_event_loop()?;
     player::close();
+    // mpv goes before the window's GL context and before the torrent session its stream reads from
+    player::shutdown(window);
     services::torrents::shutdown();
     Ok(())
 }

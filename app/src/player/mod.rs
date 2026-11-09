@@ -8,6 +8,14 @@ use engine::models::MediaItem;
 use slint::ComponentHandle;
 
 pub use session::close;
+pub use video::shutdown;
+
+/// Bytes in mpv's demuxer cache (forward + back buffer), if a player exists. Safe from any thread.
+pub fn demuxer_cache_bytes() -> Option<u64> {
+    let p = video::existing()?;
+    let state: serde_json::Value = serde_json::from_str(&p.get_property("demuxer-cache-state")?).ok()?;
+    state.get("total-bytes")?.as_u64()
+}
 
 pub fn open(item: MediaItem) {
     session::open(item);
@@ -17,6 +25,14 @@ pub fn init(window: &ui::AppWindow) {
     if let Err(e) = video::install(window) {
         eprintln!("video: {e:?}");
     }
+    // closing the window stops playback first: on Wayland hiding the window already tears down GL (and with it mpv's
+    // render context), before the event loop returns
+    window.window().on_close_requested(|| {
+        if ui::window().global::<PlayerState>().get_open() {
+            session::close();
+        }
+        slint::CloseRequestResponse::HideWindow
+    });
     let p = window.global::<PlayerState>();
     p.on_close(session::close);
     p.on_toggle_pause(session::toggle_pause);

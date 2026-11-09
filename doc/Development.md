@@ -96,6 +96,16 @@ the next start. The session listens for incoming peers (TCP, UPnP) and starts on
   (audio plays, picture stays black). `player::video::ready()` waits for it.
 - Free the render context on the GL thread before destroying mpv; destroy is quit → join the event thread →
   `mpv_terminate_destroy`. One mpv instance lives for the whole run (stopped, not destroyed, between videos).
+  At exit `main` runs the event loop itself (`window.run()` hides the window first, and on Wayland hiding frees GL) and
+  `player::shutdown(window)` does stop → drop the window (Slint's `RenderingTeardown` frees the render context) → quit
+  → join → destroy. A core that doesn't quit in 5 s is left to process exit instead of hanging there.
+- The UI thread is mpv's render thread, and libmpv says the render thread must not make blocking client calls
+  (`mpv_command`, `mpv_get/set_property`). UFlix does (seek, pause, the 4/s cache read, the info panel), so a stuck
+  core freezes the whole UI: on 2026-11-10 a VA-API decode hung inside nvidia-vaapi-driver (`mp_image_hw_download` →
+  `nvidia_drv_video.so`), the UI blocked in `mp_dispatch_lock`, and KWin killed the window (SIGABRT via
+  `kwin_killer_helper`; not a crash).
+- With the render API mpv loads every GL interop up front: on NVIDIA that includes VA-API, so nvidia-vaapi-driver is in
+  the process even when nvdec decodes, and `auto-safe` falls back to it if nvdec fails.
 - Never call libmpv from a `stream_cb` callback; always give it a cancel function.
 **Live TV** (`engine::tv`, `pages/tv.rs`)
 - Playlists are a list in Settings → Live TV, stored comma-separated in `TvLinks` (none ⇒ iptv-org's `bd.m3u`).
@@ -120,6 +130,13 @@ the next start. The session listens for incoming peers (TCP, UPnP) and starts on
 **No idle polling**
 - Nothing ticks while the user is idle. Timers that run only during an activity are fine: the 1 s torrent/info refresh
   while a torrent plays or the info panel is open, the Torrents page refresh while it is visible, auto-hide one-shots.
+
+**Diagnostics** (off unless set)
+- `UFLIX_DEBUG=1` prints mpv's log lines; `UFLIX_MPV_LOG=<file>` writes mpv's full log.
+- `UFLIX_HWDEC=<value>` replaces `hwdec` (`nvdec`, `nvdec-copy`, `vaapi`, `vaapi-copy`, `no`); the decoder and interop
+  in use are printed once per file.
+- `UFLIX_MEMLOG=<secs>` prints RSS (anon/file), threads, MemAvailable, mpv's demuxer cache and torrent counters to
+  stderr from its own thread.
 
 **Testing on the dev machine**
 - Test windows open on the LG monitor (`.claude/scripts/test-monitor2.sh`, a KWin script); media plays at 10 %
@@ -146,4 +163,6 @@ the next start. The session listens for incoming peers (TCP, UPnP) and starts on
 - Natives: run the Natives workflow once to publish a set with the nvdec/VA-API libmpv in the new `runtimes/` layout
   (the pinned `natives-2` set still has the C# folder layout).
 - uTP for torrents once librqbit marks it stable.
-- A memory probe like the C# `UFLIX_MEMPROBE` (page cycling + RSS log).
+- A memory probe like the C# `UFLIX_MEMPROBE` (page cycling + RSS log); `UFLIX_MEMLOG` covers the logging half.
+- Stop making blocking libmpv calls on the UI (render) thread: async commands/properties and observed values instead.
+- Decide the NVIDIA hwdec default (`nvdec` + CUDA interop only, no VA-API) once the `UFLIX_HWDEC` tests are in.

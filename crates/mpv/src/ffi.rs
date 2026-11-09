@@ -131,6 +131,7 @@ api! {
     get_property: "mpv_get_property" => unsafe extern "C" fn(*mut c_void, *const c_char, c_int, *mut c_void) -> c_int,
     get_property_string: "mpv_get_property_string" => unsafe extern "C" fn(*mut c_void, *const c_char) -> *mut c_char,
     command: "mpv_command" => unsafe extern "C" fn(*mut c_void, *const *const c_char) -> c_int,
+    command_async: "mpv_command_async" => unsafe extern "C" fn(*mut c_void, u64, *const *const c_char) -> c_int,
     observe_property: "mpv_observe_property" => unsafe extern "C" fn(*mut c_void, u64, *const c_char, c_int) -> c_int,
     request_log_messages: "mpv_request_log_messages" => unsafe extern "C" fn(*mut c_void, *const c_char) -> c_int,
     wait_event: "mpv_wait_event" => unsafe extern "C" fn(*mut c_void, f64) -> *mut Event,

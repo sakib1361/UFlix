@@ -168,6 +168,15 @@ impl Torrent {
     }
 }
 
+/// Session-wide counters (diagnostics).
+#[derive(Clone, Debug)]
+pub struct SessionStats {
+    pub torrents: usize,
+    pub live_peers: u32,
+    pub fetched_bytes: u64,
+    pub uploaded_bytes: u64,
+}
+
 /// The app-wide torrent session.
 pub struct Engine {
     session: Arc<Session>,
@@ -222,6 +231,16 @@ impl Engine {
     /// Removes a torrent from the session; its files stay on disk unless `delete_files`.
     pub async fn remove(&self, torrent: &Torrent, delete_files: bool) -> Result<()> {
         self.session.delete(torrent.id().into(), delete_files).await.map_err(err)
+    }
+
+    pub fn stats(&self) -> SessionStats {
+        let s = self.session.stats_snapshot();
+        SessionStats {
+            torrents: self.session.with_torrents(|it| it.count()),
+            live_peers: s.peers.live,
+            fetched_bytes: s.counters.fetched_bytes,
+            uploaded_bytes: s.counters.uploaded_bytes,
+        }
     }
 
     pub async fn stop(&self) {
