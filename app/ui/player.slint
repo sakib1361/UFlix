@@ -102,6 +102,38 @@ component Panel inherits Rectangle {
     TouchArea { }
 }
 
+// A short-lived value readout in a top corner after a seek or a volume change.
+component Osd inherits Rectangle {
+    in property <image> icon;
+    in property <string> text;
+    in property <bool> shown;
+    height: 44px;
+    width: osdl.preferred-width;
+    border-radius: 22px;
+    background: #000000b0;
+    opacity: root.shown ? 1 : 0;
+    visible: self.opacity > 0.01;
+    animate opacity { duration: Theme.normal; }
+    osdl := HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 18px;
+        spacing: 8px;
+        Image {
+            source: root.icon;
+            width: 22px;
+            colorize: white;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            text: root.text;
+            color: white;
+            font-size: Theme.font-subtitle;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+}
+
 component MenuRow inherits Rectangle {
     in property <MenuItem> item;
     callback clicked;
@@ -517,6 +549,41 @@ export component PlayerPage inherits Rectangle {
     changed width => { PlayerState.width-changed(self.width); }
     changed side => { PlayerState.width-changed(self.width); }
 
+    // corner readouts: seek on the left, volume on the right; one timer hides both
+    property <string> osd: "";   // "" | "seek" | "volume"
+    property <float> osd-delta;  // summed relative seeks while the seek readout stays up
+    osd-timer := Timer {
+        interval: 1200ms;
+        running: false;
+        triggered => {
+            self.running = false;
+            root.osd = "";
+        }
+    }
+    function show-osd(kind: string) {
+        root.osd = kind;
+        osd-timer.running = true;
+        osd-timer.restart();
+    }
+    function seek-by(d: float) {
+        root.osd-delta = root.osd == "seek" ? root.osd-delta + d : d;
+        PlayerState.seek-relative(d);
+        root.show-osd("seek");
+    }
+    function seek-to(t: float) {
+        root.osd-delta = 0;
+        PlayerState.seek(t);
+        root.show-osd("seek");
+    }
+    function volume-to(v: float) {
+        PlayerState.set-volume(v);
+        root.show-osd("volume");
+    }
+    function mute() {
+        PlayerState.toggle-mute();
+        root.show-osd("volume");
+    }
+
     pure function two(n: int) -> string { return n < 10 ? "0" + n : "" + n; }
     pure function fmt(t: float) -> string {
         return t >= 3600 ? Math.floor(t / 3600) + ":" + two(Math.mod(Math.floor(t / 60), 60)) + ":" + two(Math.mod(Math.floor(t), 60))
@@ -528,13 +595,13 @@ export component PlayerPage inherits Rectangle {
         key-pressed(e) => {
             PlayerState.activity();
             if (e.text == " " || e.text == "k") { PlayerState.toggle-pause(); return accept; }
-            if (e.text == Key.LeftArrow) { PlayerState.seek-relative(-10); return accept; }
-            if (e.text == Key.RightArrow) { PlayerState.seek-relative(10); return accept; }
-            if (e.text == Key.UpArrow) { PlayerState.set-volume(Math.min(PlayerState.volume + 5, 200)); return accept; }
-            if (e.text == Key.DownArrow) { PlayerState.set-volume(Math.max(PlayerState.volume - 5, 0)); return accept; }
+            if (e.text == Key.LeftArrow) { root.seek-by(-10); return accept; }
+            if (e.text == Key.RightArrow) { root.seek-by(10); return accept; }
+            if (e.text == Key.UpArrow) { root.volume-to(Math.min(PlayerState.volume + 5, 200)); return accept; }
+            if (e.text == Key.DownArrow) { root.volume-to(Math.max(PlayerState.volume - 5, 0)); return accept; }
             if (e.text == "f") { PlayerState.toggle-fullscreen(); return accept; }
             if (e.text == "t") { PlayerState.toggle-theater(); return accept; }
-            if (e.text == "m") { PlayerState.toggle-mute(); return accept; }
+            if (e.text == "m") { root.mute(); return accept; }
             if (e.text == "i") { PlayerState.toggle-info(); return accept; }
             if (e.text == "z") { PlayerState.sub-delay(-0.5); return accept; }
             if (e.text == "x") { PlayerState.sub-delay(0.5); return accept; }
@@ -548,7 +615,7 @@ export component PlayerPage inherits Rectangle {
             reject
         }
 
-        // The video area: move shows the controls, click pauses (or closes a menu), double-click is fullscreen.
+        // The video area: move shows the controls, click closes a menu, double-click is fullscreen.
         video := TouchArea {
             width: root.side ? root.width - root.side-width : root.width;
             x: 0;
@@ -556,7 +623,7 @@ export component PlayerPage inherits Rectangle {
             changed mouse-x => { PlayerState.activity(); }
             changed mouse-y => { PlayerState.activity(); }
             clicked => {
-                if (PlayerState.menu != "") { PlayerState.menu = ""; } else { PlayerState.toggle-pause(); }
+                PlayerState.menu = "";
                 keys.focus();
             }
             double-clicked => { PlayerState.toggle-fullscreen(); }
@@ -599,6 +666,25 @@ export component PlayerPage inherits Rectangle {
                     width: 46px;
                     colorize: white;
                 }
+            }
+
+            // seek / volume readouts, below the top bar while it shows
+            Osd {
+                shown: root.osd == "seek";
+                icon: root.osd-delta < 0 ? Icons.replay : Icons.forward;
+                text: (root.osd-delta == 0 ? "" : (root.osd-delta > 0 ? "+" : "−") + Math.abs(root.osd-delta) + " s   ")
+                    + root.pos-text + " / " + root.dur-text;
+                x: Theme.gap-l;
+                y: root.bar ? 96px : Theme.gap-l;
+                animate y { duration: Theme.normal; }
+            }
+            Osd {
+                shown: root.osd == "volume";
+                icon: PlayerState.muted || PlayerState.volume <= 0 ? Icons.volume-off : Icons.volume-up;
+                text: PlayerState.muted ? "Muted" : Math.round(PlayerState.volume) + "%";
+                x: parent.width - self.width - Theme.gap-l;
+                y: root.bar ? 96px : Theme.gap-l;
+                animate y { duration: Theme.normal; }
             }
 
             // top bar
@@ -659,7 +745,7 @@ export component PlayerPage inherits Rectangle {
                         visible: !PlayerState.live;
                         value: PlayerState.duration > 0 ? PlayerState.position / PlayerState.duration : 0;
                         secondary: PlayerState.duration > 0 ? PlayerState.buffered / PlayerState.duration : 0;
-                        changed(v) => { PlayerState.seek(v * PlayerState.duration); }
+                        changed(v) => { root.seek-to(v * PlayerState.duration); }
                     }
                     HorizontalLayout {
                         spacing: 4px;
@@ -704,7 +790,7 @@ export component PlayerPage inherits Rectangle {
                             tooltip: "Back 10 s (←)";
                             tooltip-above: true;
                             y: (parent.height - self.height) / 2;
-                            clicked => { PlayerState.seek-relative(-10); }
+                            clicked => { root.seek-by(-10); }
                         }
                         if !PlayerState.live: IconButton {
                             icon: Icons.forward;
@@ -712,7 +798,7 @@ export component PlayerPage inherits Rectangle {
                             tooltip: "Forward 10 s (→)";
                             tooltip-above: true;
                             y: (parent.height - self.height) / 2;
-                            clicked => { PlayerState.seek-relative(10); }
+                            clicked => { root.seek-by(10); }
                         }
                         IconButton {
                             icon: PlayerState.muted || PlayerState.volume <= 0 ? Icons.volume-off : Icons.volume-up;
@@ -720,14 +806,15 @@ export component PlayerPage inherits Rectangle {
                             tooltip: "Mute (M)";
                             tooltip-above: true;
                             y: (parent.height - self.height) / 2;
-                            clicked => { PlayerState.toggle-mute(); }
+                            clicked => { root.mute(); }
                         }
                         Slider {
                             width: 110px;
                             y: (parent.height - self.height) / 2;
                             value: PlayerState.muted ? 0 : PlayerState.volume / 100;
-                            changed(v) => { PlayerState.set-volume(v * 100); }
+                            changed(v) => { root.volume-to(v * 100); }
                         }
+                        Rectangle { width: Theme.gap; }
                         Text {
                             text: PlayerState.live ? "LIVE" : root.pos-text + "  /  " + root.dur-text;
                             color: PlayerState.live ? Theme.accent-hover : #ffffffd0;
