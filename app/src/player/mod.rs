@@ -47,6 +47,11 @@ pub fn init(window: &ui::AppWindow) {
     p.on_menu_select(|i| session::menu_select(i as usize));
     p.on_sub_delay(|d| session::sub_delay(d as f64));
     p.on_activity(session::show_controls);
+    p.on_hide_cursor(|| {
+        use slint::winit_030::WinitWindowAccessor;
+        // Slint sets the cursor again on the next pointer event, which also shows the controls
+        ui::window().window().with_winit_window(|w| w.set_cursor_visible(false));
+    });
     p.on_set_speed(|s| session::set_speed(s as f64));
     p.on_set_picture(|name, v| session::set_picture(&name, v as f64));
     p.on_reset_picture(session::reset_picture);

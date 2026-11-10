@@ -80,7 +80,9 @@ for the whole app while playing (the C# Uno app: 4.9–5.8 %, 23–31 %, 250–2
 
 **Torrent buffering:** librqbit's stream waits for and prioritises the pieces at the read position; mpv's cache
 (`cache-pause-wait=4`) pauses when it runs dry and resumes with 4 s buffered. `BlockingStream::cancel` (mpv's
-`cancel_fn`) wakes a blocked read on stop.
+`cancel_fn`) wakes a blocked read on stop. Only the playing file (and its subtitles) is selected, so it gets all the
+bandwidth (librqbit has no settable file priority); once it is complete the player's stats tick selects the whole
+torrent so the other episodes download, and playing another file narrows the selection to it again.
 
 **Torrent lifetime:** a torrent opened to play is tracked as Play and removed from the session when the player closes
 unless it finished (files stay for the size cleaner); Download torrents stay (and seed) until complete and come back at

@@ -81,6 +81,8 @@ export global PlayerState {
     callback menu-select(int);
     callback sub-delay(float);
     callback activity();
+    // the controls hid with the pointer over the video: hide it now (Slint applies `mouse-cursor` only on the next pointer event)
+    callback hide-cursor();
     callback set-speed(float);
     callback set-picture(string, float);
     callback reset-picture();
@@ -548,6 +550,9 @@ export component PlayerPage inherits Rectangle {
     property <string> dur-text: root.fmt(PlayerState.duration);
     changed width => { PlayerState.width-changed(self.width); }
     changed side => { PlayerState.width-changed(self.width); }
+    changed bar => {
+        if (!self.bar && video.has-hover) { PlayerState.hide-cursor(); }
+    }
 
     // corner readouts: seek on the left, volume on the right; one timer hides both
     property <string> osd: "";   // "" | "seek" | "volume"
@@ -660,11 +665,18 @@ export component PlayerPage inherits Rectangle {
                 width: 88px;
                 height: 88px;
                 border-radius: 44px;
-                background: #00000099;
+                background: play-ta.has-hover ? #000000cc : #00000099;
                 Image {
                     source: Icons.play;
                     width: 46px;
                     colorize: white;
+                }
+                play-ta := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        PlayerState.toggle-pause();
+                        keys.focus();
+                    }
                 }
             }
 

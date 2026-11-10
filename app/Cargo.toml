@@ -9,7 +9,7 @@ license.workspace = true
 engine = { path = "../crates/engine" }
 mpv = { path = "../crates/mpv" }
 torrent = { path = "../crates/torrent" }
-slint = { version = "1.18", features = ["raw-window-handle-06"] }
+slint = { version = "1.18", features = ["raw-window-handle-06", "unstable-winit-030"] }
 raw-window-handle = "0.6"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 tokio.workspace = true

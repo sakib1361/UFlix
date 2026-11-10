@@ -27,6 +27,8 @@ struct TorrentPlay {
     handle: torrent::Torrent,
     files: Vec<torrent::TorrentFile>,
     index: usize,
+    /// The playing file is complete and the whole torrent has been selected.
+    widened: bool,
 }
 
 #[derive(Clone)]
@@ -421,7 +423,7 @@ fn open_torrent(seq: u64, item: MediaItem, start: Option<f64>) {
         }
         let index = pick_file(&item, &files);
         with(|s| {
-            s.torrent = Some(TorrentPlay { url: item.url.clone(), handle: handle.clone(), files: files.clone(), index });
+            s.torrent = Some(TorrentPlay { url: item.url.clone(), handle: handle.clone(), files: files.clone(), index, widened: false });
         });
         if files.len() > 1 {
             let images = file_images(&item, &handle, &files).await;
@@ -519,6 +521,7 @@ fn play_torrent_file(seq: u64, index: usize, start: Option<f64>) {
     let Some(Some((handle, file, all, title))) = with(|s| {
         let t = s.torrent.as_mut()?;
         t.index = index;
+        t.widened = false;
         s.index = index;
         s.item.torrent_file = Some(t.files[index].path.clone());
         Some((t.handle.clone(), t.files[index].clone(), t.handle.files(), s.item.title.clone()))
@@ -582,7 +585,28 @@ fn start_torrent_stats(seq: u64) {
                 return;
             }
             refresh_stats();
+            widen_when_done();
         })
+    });
+}
+
+/// The playing file downloads alone (with its subtitles) so it gets all the bandwidth; once it is complete the rest
+/// of the torrent is selected, so the other episodes download too. Playing another file narrows it again.
+fn widen_when_done() {
+    let Some(Some(handle)) = with(|s| {
+        let t = s.torrent.as_mut()?;
+        let file = &t.files[t.index];
+        if t.widened || t.handle.status().file_progress.get(file.index).copied().unwrap_or(0) < file.size {
+            return None;
+        }
+        t.widened = true;
+        Some(t.handle.clone())
+    }) else {
+        return;
+    };
+    crate::runtime::handle().spawn(async move {
+        let all: Vec<usize> = handle.files().iter().map(|f| f.index).collect();
+        let _ = handle.select_files(&all).await;
     });
 }
 
