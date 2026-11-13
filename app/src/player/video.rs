@@ -62,8 +62,8 @@ pub fn player() -> Result<Arc<Player>, String> {
             if let Ok(log) = std::env::var("UFLIX_MPV_LOG") {
                 extra.push(("log-file".into(), log));
             }
-            let mut options = Options { extra, ..Default::default() };
-            // diagnostics: UFLIX_HWDEC=nvdec|nvdec-copy|vaapi|vaapi-copy|no|... replaces the default
+            let mut options = Options { extra, hwdec: hwdec_value(&engine::settings::video_decoder()), ..Default::default() };
+            // diagnostics: UFLIX_HWDEC=nvdec|nvdec-copy|vaapi|vaapi-copy|no|... replaces the setting
             if let Some(hwdec) = std::env::var("UFLIX_HWDEC").ok().filter(|v| !v.trim().is_empty()) {
                 eprintln!("[uflix] hwdec={hwdec} (UFLIX_HWDEC)");
                 options.hwdec = hwdec;
@@ -71,6 +71,116 @@ pub fn player() -> Result<Arc<Player>, String> {
             Player::new(options, forward).map(Arc::new)
         })
         .clone()
+}
+
+// ---------------------------------------------------------------- video decoder
+
+/// When a decoder mode is offered: always, never, if mpv loaded a GPU interop, or if it did not.
+#[derive(Clone, Copy)]
+enum Need {
+    Always,
+    Never,
+    Interop(&'static str),
+    NotInterop(&'static str),
+}
+
+/// A decoder API in Settings: its label, the mpv hwdec value (`-copy` appended for copy mode) and when its zero-copy
+/// and copy modes can work.
+struct Api {
+    label: &'static str,
+    hwdec: &'static str,
+    zero_copy: Need,
+    copy: Need,
+}
+
+const fn api(label: &'static str, hwdec: &'static str, zero_copy: Need, copy: Need) -> Api {
+    Api { label, hwdec, zero_copy, copy }
+}
+
+#[cfg(windows)]
+const APIS: &[Api] = &[
+    api("Auto", "auto", Need::Always, Need::Never),
+    // the Windows interop names are not checked yet (no Windows test run), so nothing is filtered there
+    api("D3D11", "d3d11va", Need::Always, Need::Always),
+    api("NVDEC", "nvdec", Need::Never, Need::Always),
+    api("Software", "no", Need::Always, Need::Never),
+];
+#[cfg(not(windows))]
+const APIS: &[Api] = &[
+    api("Auto", "auto", Need::Always, Need::Never),
+    api("NVDEC", "nvdec", Need::Interop("cuda"), Need::Interop("cuda")),
+    api("VA-API", "vaapi", Need::Interop("vaapi"), Need::Interop("vaapi")),
+    // mpv has no Vulkan→GL interop, so Vulkan is copy-only; offered where there is no NVIDIA GPU
+    api("Vulkan", "vulkan", Need::Never, Need::NotInterop("cuda")),
+    api("Software", "no", Need::Always, Need::Never),
+];
+
+/// A decoder API this machine can use, with the modes it offers.
+pub struct Decoder {
+    pub label: &'static str,
+    pub hwdec: &'static str,
+    pub zero_copy: bool,
+    pub copy: bool,
+}
+
+impl Decoder {
+    /// The stored setting for this API in the given mode (copy-only APIs are always copy).
+    pub fn value(&self, copy: bool) -> String {
+        if (copy && self.copy) || !self.zero_copy { format!("{}-copy", self.hwdec) } else { self.hwdec.to_string() }
+    }
+}
+
+/// The decoder APIs this machine can use. mpv has no "what works" query: zero-copy needs the GPU interop mpv loaded
+/// with the render context (`hwdec-interop`, remembered across runs), and until a video has been shown once every
+/// choice is offered. A choice that still fails falls back to software decoding.
+pub fn decoders() -> Vec<Decoder> {
+    let seen = engine::settings::decoder_interops();
+    let has = |i: &str| seen.split(',').any(|s| s.trim() == i);
+    let ok = |n: Need| match n {
+        Need::Always => true,
+        Need::Never => false,
+        Need::Interop(i) => seen.is_empty() || has(i),
+        Need::NotInterop(i) => seen.is_empty() || !has(i),
+    };
+    APIS.iter()
+        .map(|a| Decoder { label: a.label, hwdec: a.hwdec, zero_copy: ok(a.zero_copy), copy: ok(a.copy) })
+        .filter(|d| d.zero_copy || d.copy)
+        .collect()
+}
+
+/// A stored setting split into the API (its hwdec value) and copy mode.
+pub fn parse_decoder(value: &str) -> (&str, bool) {
+    match value.strip_suffix("-copy") {
+        Some(api) => (api, true),
+        None => (value, false),
+    }
+}
+
+/// The mpv `hwdec` value for a stored choice.
+fn hwdec_value(choice: &str) -> String {
+    if choice.is_empty() || choice == "auto" { "auto-safe".into() } else { choice.into() }
+}
+
+/// Switches the decoder of the running player; mpv re-creates the decoder in place (no reload, no seek).
+pub fn apply_decoder(choice: &str) {
+    if let Some(p) = existing() {
+        p.set_property("hwdec", &hwdec_value(choice));
+    }
+}
+
+/// The decoder of the last video ("nvdec", "no" = software), for Settings.
+pub fn decoder_in_use() -> String {
+    IN_USE.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+static IN_USE: Mutex<String> = Mutex::new(String::new());
+
+/// Remembers mpv's loaded GPU interops for Settings. mpv reports them only once a hardware decoder has started
+/// (`hwdec-interop` is still empty right after the render context is created).
+fn remember_interops(interops: &str) {
+    if !interops.is_empty() && interops != engine::settings::decoder_interops() {
+        engine::settings::set_decoder_interops(interops.to_string());
+    }
 }
 
 /// The player if it has been created (never creates it). For diagnostics on other threads.
@@ -135,6 +245,8 @@ fn forward(e: Event) {
     }
     if let Event::Hwdec { current, interop } = &e {
         log_hwdec(current, interop);
+        let interop = interop.clone();
+        ui(move || remember_interops(&interop));
     }
     if let Event::Log(line) = &e {
         if std::env::var_os("UFLIX_DEBUG").is_some() {
@@ -151,6 +263,9 @@ fn log_hwdec(current: &str, interop: &str) {
     let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
     if current == *last {
         return;
+    }
+    if !current.is_empty() {
+        *IN_USE.lock().unwrap_or_else(|e| e.into_inner()) = current.to_string();
     }
     *last = current.to_string();
     match current {

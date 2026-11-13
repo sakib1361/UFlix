@@ -37,6 +37,12 @@ setting!(subtitle_color, set_subtitle_color, "SubtitleColor", String, "#FFFFFFFF
 setting!(subtitle_font, set_subtitle_font, "SubtitleFont", String, String::new());
 setting!(check_updates_daily, set_check_updates_daily, "CheckUpdatesDaily", bool, true);
 setting!(
+    /// Video decoder: "auto" (mpv's auto-safe) or an mpv hwdec value (nvdec, nvdec-copy, vaapi, ..., "no").
+    video_decoder, set_video_decoder, "VideoDecoder", String, "auto".into());
+setting!(
+    /// mpv's GPU interops seen on this machine ("vaapi,cuda"), so Settings can offer only decoders that can work.
+    decoder_interops, set_decoder_interops, "DecoderInterops", String, String::new());
+setting!(
     /// Autoplay the next YouTube video / playlist item.
     autoplay, set_autoplay, "Autoplay", bool, true);
 

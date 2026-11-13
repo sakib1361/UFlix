@@ -137,6 +137,11 @@ the next start. The session listens for incoming peers (TCP, UPnP) and starts on
 - `UFLIX_DEBUG=1` prints mpv's log lines; `UFLIX_MPV_LOG=<file>` writes mpv's full log.
 - `UFLIX_HWDEC=<value>` replaces `hwdec` (`nvdec`, `nvdec-copy`, `vaapi`, `vaapi-copy`, `no`); the decoder and interop
   in use are printed once per file.
+- Settings → Player → Video decoder stores `VideoDecoder` (`auto` = mpv's `auto-safe`, or an API + zero-copy/copy) and
+  applies it live (`hwdec` set on the running mpv). mpv can't list working decoders, so the choices are filtered by
+  the GPU interops it reported for the last hardware-decoded video (`DecoderInterops`, e.g. `vaapi,cuda`: NVDEC needs
+  `cuda`, VA-API `vaapi`; Vulkan is copy-only and hidden on NVIDIA). `hwdec-interop` is empty until a hardware decoder
+  has started. `UFLIX_HWDEC` still overrides the setting at start-up.
 - `UFLIX_MEMLOG=<secs>` prints RSS (anon/file), threads, MemAvailable, mpv's demuxer cache and torrent counters to
   stderr from its own thread.
 
@@ -168,3 +173,6 @@ the next start. The session listens for incoming peers (TCP, UPnP) and starts on
 - A memory probe like the C# `UFLIX_MEMPROBE` (page cycling + RSS log); `UFLIX_MEMLOG` covers the logging half.
 - Stop making blocking libmpv calls on the UI (render) thread: async commands/properties and observed values instead.
 - Decide the NVIDIA hwdec default (`nvdec` + CUDA interop only, no VA-API) once the `UFLIX_HWDEC` tests are in.
+  2026-11-13, RTX 3060 Ti, 1080p: nvdec 3.2–3.4 % CPU (one core) / ~700 MB RSS; nvdec-copy 4.5–5.4 % / ~870 MB;
+  software 12–17 % / ~860 MB. NVDEC keeps the card out of P8 (~55 W vs 30 W idle) in both modes. About 1 in 100
+  nvdec plays shows fixed black dashes for the whole playback (interop textures; stop/start clears them).

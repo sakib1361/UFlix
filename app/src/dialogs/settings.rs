@@ -1,8 +1,9 @@
-//! Settings: player (subtitle style, subtitle provider), downloads, torrent search sources, Live TV playlists, updates.
+//! Settings: player (subtitle style, subtitle provider, video decoder), downloads, torrent search sources, Live TV playlists, updates.
 
+use crate::player;
 use crate::runtime::{blocking, spawn_ui};
 use crate::services::updater::{self, Outcome};
-use crate::ui::{self, EngineUrl, SettingsState};
+use crate::ui::{self, DecoderApi, EngineUrl, SettingsState};
 use engine::search::Engine;
 use engine::settings as s;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
@@ -61,6 +62,15 @@ pub fn open() {
         x.set_sub_color(s::subtitle_color().into());
         x.set_sub_font(s::subtitle_font().into());
         x.set_subtitle_provider(engine::subtitles::Provider::ALL.iter().position(|p| *p == provider).unwrap_or(0) as i32);
+        let decoders = player::decoders();
+        let stored = s::video_decoder();
+        let (api, copy) = player::parse_decoder(&stored);
+        let apis: Vec<DecoderApi> =
+            decoders.iter().map(|d| DecoderApi { name: d.label.into(), zero_copy: d.zero_copy, copy: d.copy }).collect();
+        x.set_decoders(ModelRc::from(Rc::new(VecModel::from(apis))));
+        x.set_decoder(decoders.iter().position(|d| d.hwdec == api).unwrap_or(0) as i32);
+        x.set_decoder_copy(copy);
+        x.set_decoder_hint(decoder_hint().into());
         x.set_torrent_folder(s::torrent_download_path().into());
         x.set_youtube_folder(s::youtube_download_path().into());
         x.set_max_folder_size(format!("{}", s::max_folder_size()).into());
@@ -112,12 +122,32 @@ fn save() {
             crate::pages::tv::links_changed();
         }
         s::set_check_updates_daily(x.get_daily_check());
+        if let Some(d) = player::decoders().get(x.get_decoder() as usize) {
+            let value = d.value(x.get_decoder_copy());
+            if value != s::video_decoder() {
+                player::apply_decoder(&value);
+                s::set_video_decoder(value);
+            }
+        }
         x.set_open(false);
     });
     for (e, url) in Engine::ALL.iter().zip(ENGINE_URLS.with(|u| u.borrow().clone())) {
         e.set_url(url.trim());
     }
     ui::toast("Settings saved. Subtitle style applies to the next video.");
+}
+
+/// What the last video used, and what the choices mean.
+fn decoder_hint() -> String {
+    let in_use = match player::decoder_in_use().as_str() {
+        "" => String::new(),
+        "no" => "Last video: software. ".into(),
+        hw => format!("Last video: {hw}. "),
+    };
+    format!(
+        "{in_use}Auto lets mpv pick a safe hardware decoder. Zero-copy keeps frames on the GPU (least CPU and memory); \
+         copy moves each frame through system memory. Applies at once."
+    )
 }
 
 fn tv_links() -> Option<Rc<VecModel<SharedString>>> {

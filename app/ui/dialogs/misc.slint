@@ -86,6 +86,12 @@ export struct EngineUrl {
     url: string,
 }
 
+export struct DecoderApi {
+    name: string,
+    zero-copy: bool,
+    copy: bool,
+}
+
 export global SettingsState {
     in-out property <bool> open;
     in-out property <int> tab; // 0 player, 1 downloads, 2 torrents, 3 live tv, 4 updates
@@ -95,6 +101,10 @@ export global SettingsState {
     in-out property <string> sub-font;
     in property <[string]> subtitle-providers;
     in-out property <int> subtitle-provider;
+    in property <[DecoderApi]> decoders;
+    in-out property <int> decoder;
+    in-out property <bool> decoder-copy;
+    in property <string> decoder-hint;
     // downloads
     in-out property <string> torrent-folder;
     in-out property <string> youtube-folder;
@@ -197,6 +207,44 @@ export component SettingsDialog inherits DialogFrame {
                                 selected: SettingsState.subtitle-provider == i;
                                 clicked => { SettingsState.subtitle-provider = i; }
                             }
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: 8px;
+                        Text {
+                            text: "Video decoder";
+                            color: Theme.text-2;
+                            font-weight: 600;
+                        }
+                        HorizontalLayout {
+                            spacing: Theme.gap-s;
+                            alignment: start;
+                            for d[i] in SettingsState.decoders: Chip {
+                                text: d.name;
+                                selected: SettingsState.decoder == i;
+                                clicked => { SettingsState.decoder = i; }
+                            }
+                        }
+                        // the frame path, for an API that has both modes
+                        if SettingsState.decoders[SettingsState.decoder].zero-copy && SettingsState.decoders[SettingsState.decoder].copy: HorizontalLayout {
+                            spacing: Theme.gap-s;
+                            alignment: start;
+                            Chip {
+                                text: "Zero-copy";
+                                selected: !SettingsState.decoder-copy;
+                                clicked => { SettingsState.decoder-copy = false; }
+                            }
+                            Chip {
+                                text: "Copy";
+                                selected: SettingsState.decoder-copy;
+                                clicked => { SettingsState.decoder-copy = true; }
+                            }
+                        }
+                        Text {
+                            text: SettingsState.decoder-hint;
+                            color: Theme.text-3;
+                            font-size: Theme.font-small;
+                            wrap: word-wrap;
                         }
                     }
                     Text {

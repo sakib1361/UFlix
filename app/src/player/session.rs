@@ -67,6 +67,14 @@ thread_local! {
     static S: RefCell<Option<Session>> = const { RefCell::new(None) };
     static HIDE: slint::Timer = slint::Timer::default();
     static TICK: slint::Timer = slint::Timer::default();
+    /// Last `sub-margin-y` sent: `show_controls` runs on every mouse move and each set is a blocking mpv call.
+    static SUB_MARGIN: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+fn set_sub_margin(margin: u32) {
+    if SUB_MARGIN.with(|m| m.replace(margin)) != margin {
+        mpv_do(|p| p.set_property("sub-margin-y", &margin.to_string()));
+    }
 }
 
 fn with<R>(f: impl FnOnce(&mut Session) -> R) -> Option<R> {
@@ -886,13 +894,13 @@ pub fn update_video_margin() {
 /// Shows the bars and hides them again after 3 s of no activity while playing.
 pub fn show_controls() {
     ps(|p| p.set_controls_visible(true));
-    mpv_do(|p| p.set_property("sub-margin-y", "110"));
+    set_sub_margin(110);
     HIDE.with(|t| {
         t.start(slint::TimerMode::SingleShot, Duration::from_secs(3), || {
             let busy = ps(|p| p.get_paused() || p.get_loading() || p.get_menu() != "" || !p.get_open());
             if !busy {
                 ps(|p| p.set_controls_visible(false));
-                mpv_do(|p| p.set_property("sub-margin-y", "34"));
+                set_sub_margin(34);
             }
         })
     });

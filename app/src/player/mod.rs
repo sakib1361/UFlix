@@ -8,7 +8,7 @@ use engine::models::MediaItem;
 use slint::ComponentHandle;
 
 pub use session::close;
-pub use video::shutdown;
+pub use video::{apply_decoder, decoder_in_use, decoders, parse_decoder, shutdown};
 
 /// Bytes in mpv's demuxer cache (forward + back buffer), if a player exists. Safe from any thread.
 pub fn demuxer_cache_bytes() -> Option<u64> {
