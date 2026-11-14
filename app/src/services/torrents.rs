@@ -14,10 +14,28 @@ async fn engine() -> Result<Arc<Engine>, String> {
     ENGINE
         .get_or_init(|| async {
             let folder = engine::paths::torrent_folder();
-            Engine::start(&folder, &engine::paths::torrent_state_folder()).await.map(Arc::new)
+            let state = engine::paths::torrent_state_folder();
+            forget_leftovers(&state);
+            Engine::start(&folder, &state).await.map(Arc::new)
         })
         .await
         .clone()
+}
+
+/// The session restores and resumes every torrent it had. Played torrents are removed when the player closes, but a
+/// crash or a killed app leaves them saved, and each would download again at the next start and hold its own peers.
+/// Only tracked downloads are restored; the rest are forgotten before the session starts (their files stay on disk).
+fn forget_leftovers(state: &std::path::Path) {
+    let downloads: Vec<Option<String>> = engine::settings::tracked_torrents()
+        .into_iter()
+        .filter(|t| t.kind == TorrentKind::Download)
+        .map(|t| torrent::magnet_info_hash(&t.url))
+        .collect();
+    // a download added from a .torrent file has no hash in its record: it can't be told apart, so forget nothing
+    if downloads.iter().any(Option::is_none) {
+        return;
+    }
+    Engine::forget_saved(state, |hash| downloads.iter().flatten().any(|h| h == hash));
 }
 
 /// Re-adds unfinished tracked downloads in the background (completed records are dropped). The session itself starts

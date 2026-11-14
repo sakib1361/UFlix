@@ -7005,6 +7005,7 @@ name = "torrent"
 version = "0.2.0"
 dependencies = [
  "librqbit",
+ "serde_json",
  "tokio",
 ]
 

@@ -184,6 +184,38 @@ pub struct Engine {
 }
 
 impl Engine {
+    /// Forgets saved torrents whose info hash `keep` rejects, before [`Engine::start`] would restore and resume them:
+    /// drops them from librqbit's `session.json` and deletes their `.torrent` / `.bitv` state files. Downloaded data
+    /// stays on disk. A session file that can't be read is left alone.
+    pub fn forget_saved(state_folder: &Path, keep: impl Fn(&str) -> bool) {
+        let file = state_folder.join("session.json");
+        let Ok(text) = std::fs::read_to_string(&file) else { return };
+        let Ok(mut json) = serde_json::from_str::<serde_json::Value>(&text) else { return };
+        let Some(torrents) = json.get_mut("torrents").and_then(|t| t.as_object_mut()) else { return };
+        let mut dropped = Vec::new();
+        torrents.retain(|_, t| {
+            let hash = t.get("info_hash").and_then(|h| h.as_str()).unwrap_or_default().to_ascii_lowercase();
+            let kept = hash.is_empty() || keep(&hash);
+            if !kept {
+                dropped.push(hash);
+            }
+            kept
+        });
+        if dropped.is_empty() {
+            return;
+        }
+        let Ok(text) = serde_json::to_string(&json) else { return };
+        // write-then-rename so a crash can't leave a half-written session
+        let tmp = file.with_extension("json.tmp");
+        if std::fs::write(&tmp, text).is_err() || std::fs::rename(&tmp, &file).is_err() {
+            return;
+        }
+        for hash in dropped {
+            let _ = std::fs::remove_file(state_folder.join(format!("{hash}.torrent")));
+            let _ = std::fs::remove_file(state_folder.join(format!("{hash}.bitv")));
+        }
+    }
+
     /// Starts the session. `state_folder` keeps the torrent list and fast-resume data between runs; torrents download
     /// into `default_folder` unless `add` names another folder. Must run inside a tokio runtime.
     pub async fn start(default_folder: &Path, state_folder: &Path) -> Result<Self> {
@@ -194,6 +226,9 @@ impl Engine {
             persistence: Some(SessionPersistenceConfig::Json { folder: Some(state_folder.to_path_buf()) }),
             // accept incoming peers (and forward the port with UPnP), so torrents upload while they play or seed
             listen: Some(ListenerOptions { mode: ListenerMode::TcpOnly, enable_upnp_port_forwarding: true, ..Default::default() }),
+            // librqbit's default is 128 peers per torrent with no session-wide cap: a few torrents then hold hundreds of
+            // sockets. 50 is plenty for streaming and keeps several torrents well under the open-file limit.
+            peer_limit: Some(50),
             ..Default::default()
         };
         let session = Session::new_with_opts(default_folder.to_path_buf(), options).await.map_err(err)?;
@@ -320,4 +355,26 @@ pub fn readable_size(bytes: u64) -> String {
         unit += 1;
     }
     format!("{value:.1} {}", UNITS[unit])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Engine;
+
+    #[test]
+    fn forget_saved_keeps_only_wanted() {
+        let dir = std::env::temp_dir().join(format!("uflix-forget-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let session = r#"{"torrents":{"0":{"info_hash":"aaaa","only_files":[0]},"1":{"info_hash":"bbbb","only_files":[1]}}}"#;
+        std::fs::write(dir.join("session.json"), session).unwrap();
+        for f in ["aaaa.torrent", "aaaa.bitv", "bbbb.torrent", "bbbb.bitv"] {
+            std::fs::write(dir.join(f), b"x").unwrap();
+        }
+        Engine::forget_saved(&dir, |h| h == "aaaa");
+        let text = std::fs::read_to_string(dir.join("session.json")).unwrap();
+        assert!(text.contains("aaaa") && !text.contains("bbbb"));
+        assert!(dir.join("aaaa.torrent").exists() && dir.join("aaaa.bitv").exists());
+        assert!(!dir.join("bbbb.torrent").exists() && !dir.join("bbbb.bitv").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }

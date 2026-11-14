@@ -8,3 +8,4 @@ license.workspace = true
 [dependencies]
 librqbit = { version = "9.1", default-features = false, features = ["rust-tls"] }
 tokio.workspace = true
+serde_json.workspace = true
