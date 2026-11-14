@@ -8,6 +8,7 @@ static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
 
 pub fn init() {
     limit_malloc_arenas();
+    raise_open_file_limit();
     // network and disk work: a few workers are plenty (one per core only adds per-thread memory)
     RT.get_or_init(|| {
         tokio::runtime::Builder::new_multi_thread()
@@ -29,6 +30,32 @@ fn limit_malloc_arenas() {
         }
         const M_ARENA_MAX: i32 = -8;
         unsafe { mallopt(M_ARENA_MAX, 2) };
+    }
+}
+
+/// Desktop launchers start apps with a soft limit of 1024 open files. Torrent peers use one socket each, and with
+/// several torrents they reach it; the NVIDIA EGL driver then can't create its per-frame sync fd and the window stops
+/// drawing (or aborts). Raise the soft limit to the hard one, as torrent clients do.
+fn raise_open_file_limit() {
+    #[cfg(target_os = "linux")]
+    {
+        #[repr(C)]
+        struct RLimit {
+            cur: u64,
+            max: u64,
+        }
+        unsafe extern "C" {
+            fn getrlimit(resource: i32, rlim: *mut RLimit) -> i32;
+            fn setrlimit(resource: i32, rlim: *const RLimit) -> i32;
+        }
+        const RLIMIT_NOFILE: i32 = 7;
+        let mut lim = RLimit { cur: 0, max: 0 };
+        unsafe {
+            if getrlimit(RLIMIT_NOFILE, &mut lim) == 0 && lim.cur < lim.max {
+                lim.cur = lim.max;
+                setrlimit(RLIMIT_NOFILE, &lim);
+            }
+        }
     }
 }
 
