@@ -27,6 +27,7 @@ fn local(title: String, path: &Path) -> TorrentInfo {
         leechers: "1".into(),
         media_type: MediaType::Local,
         provider: "Local".into(),
+        ..Default::default()
     }
 }
 

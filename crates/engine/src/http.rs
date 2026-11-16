@@ -18,11 +18,16 @@ pub fn client() -> &'static reqwest::Client {
 
 /// GETs JSON, caching it for `days` under the URL; serves the cache unless `forced`.
 pub async fn get_json_cached<T: DeserializeOwned + Serialize>(url: &str, forced: bool, days: i64) -> Option<T> {
-    if !forced && let Some(v) = db().cache_get::<T>(url) {
+    get_json_cached_as(url, url, forced, days).await
+}
+
+/// [`get_json_cached`] under another cache key (a new key drops entries saved before `T` gained fields).
+pub async fn get_json_cached_as<T: DeserializeOwned + Serialize>(url: &str, key: &str, forced: bool, days: i64) -> Option<T> {
+    if !forced && let Some(v) = db().cache_get::<T>(key) {
         return Some(v);
     }
     let value: T = client().get(url).send().await.ok()?.error_for_status().ok()?.json().await.ok()?;
-    db().cache_put(url, &value, days);
+    db().cache_put(key, &value, days);
     Some(value)
 }
 

@@ -168,6 +168,17 @@ impl Torrent {
     }
 }
 
+/// The files to download when a torrent is added, when they are known before its metadata (a search result can name
+/// the episode's file in a season pack).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Wanted {
+    All,
+    /// A file's index in the torrent.
+    Index(usize),
+    /// A file's name (its last path component).
+    Name(String),
+}
+
 /// Session-wide counters (diagnostics).
 #[derive(Clone, Debug)]
 pub struct SessionStats {
@@ -240,12 +251,30 @@ impl Engine {
     }
 
     /// Adds a magnet link, http(s) .torrent URL or local .torrent file, or returns the torrent if it is already in the
-    /// session. Waits until its metadata (file list) is known. `only` selects the files to download (None = all).
+    /// session (keeping its file selection). Waits until its metadata (file list) is known. `wanted` selects the files
+    /// to download from the start, so nothing else is fetched before the caller narrows the selection; if it names no
+    /// file of the torrent, the whole torrent is selected instead.
     /// Files go under the session's folder: a multi-file torrent in a folder named after it, a single file as is
     /// (libtorrent's layout, so downloads made by either are found again).
-    pub async fn add(&self, url: &str, only: Option<Vec<usize>>) -> Result<Torrent> {
+    pub async fn add(&self, url: &str, wanted: Wanted) -> Result<Torrent> {
+        match self.add_with(url, &wanted).await {
+            // librqbit rejects a selection that names no file only once the metadata is known
+            Err(e) if wanted != Wanted::All && (e.contains("out of range") || e.contains("none of the filenames match")) => {
+                self.add_with(url, &Wanted::All).await
+            }
+            r => r,
+        }
+    }
+
+    async fn add_with(&self, url: &str, wanted: &Wanted) -> Result<Torrent> {
         let source = if Path::new(url).is_file() { AddTorrent::from_local_filename(url).map_err(err)? } else { AddTorrent::from_url(url) };
-        let options = AddTorrentOptions { overwrite: true, only_files: only, ..Default::default() };
+        let (only_files, only_files_regex) = match wanted {
+            Wanted::All => (None, None),
+            Wanted::Index(i) => (Some(vec![*i]), None),
+            // the path as librqbit sees it, '/' or '\' separated: match the last component exactly
+            Wanted::Name(name) => (None, Some(format!(r"(?:^|[/\\]){}$", regex::escape(name)))),
+        };
+        let options = AddTorrentOptions { overwrite: true, only_files, only_files_regex, ..Default::default() };
         let response = self.session.add_torrent(source, Some(options)).await.map_err(err)?;
         let handle = match response {
             AddTorrentResponse::Added(_, h) | AddTorrentResponse::AlreadyManaged(_, h) => h,

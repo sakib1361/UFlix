@@ -6,7 +6,7 @@ use crate::runtime::{bg, handle};
 use engine::models::{TorrentKind, TrackedTorrent};
 use std::sync::Arc;
 use tokio::sync::OnceCell;
-use torrent::{Engine, Torrent};
+use torrent::{Engine, Torrent, Wanted};
 
 static ENGINE: OnceCell<Result<Arc<Engine>, String>> = OnceCell::const_new();
 
@@ -50,7 +50,7 @@ pub fn start() {
     handle().spawn(async move {
         let Ok(e) = engine().await else { return };
         for t in tracked {
-            let _ = e.add(&t.url, None).await;
+            let _ = e.add(&t.url, Wanted::All).await;
         }
     });
 }
@@ -80,11 +80,12 @@ fn kind_of(url: &str) -> Option<TorrentKind> {
     engine::settings::tracked_torrents().into_iter().find(|t| t.url == url).map(|t| t.kind)
 }
 
-/// Adds (or finds) a torrent for the player; resolves once its file list is known.
-pub async fn open(url: String, title: String) -> Result<Torrent, String> {
+/// Adds (or finds) a torrent for the player; resolves once its file list is known. `wanted` is the file to play when
+/// it is known beforehand: only it downloads from the start (the player then selects it with its subtitles).
+pub async fn open(url: String, title: String, wanted: Wanted) -> Result<Torrent, String> {
     bg(async move {
         let e = engine().await?;
-        let t = e.add(&url, None).await?;
+        let t = e.add(&url, wanted).await?;
         track(&url, &title, TorrentKind::Play);
         Ok(t)
     })
@@ -116,7 +117,7 @@ pub fn download(url: &str, title: &str) {
     handle().spawn(async move {
         let result = async {
             let e = engine().await?;
-            let t = e.add(&url, None).await?;
+            let t = e.add(&url, Wanted::All).await?;
             let all: Vec<usize> = t.files().iter().map(|f| f.index).collect();
             t.select_files(&all).await?;
             t.resume().await.ok();

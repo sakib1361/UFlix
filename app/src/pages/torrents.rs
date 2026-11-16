@@ -75,7 +75,14 @@ pub fn init() {
         t.on_result_play(|i| {
             if let Some(info) = STATE.with(|s| s.borrow().results.get(i as usize).cloned()) {
                 crate::services::torrents::download(&info.url, &info.title);
-                crate::open::play(MediaItem { url: info.url, title: info.title, media_type: MediaType::Torrent, ..Default::default() });
+                crate::open::play(MediaItem {
+                    url: info.url,
+                    title: info.title,
+                    media_type: MediaType::Torrent,
+                    torrent_file_name: info.file_name,
+                    torrent_file_index: info.file_index,
+                    ..Default::default()
+                });
             }
         });
         t.on_result_download(|i| {

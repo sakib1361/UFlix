@@ -418,7 +418,7 @@ fn on_loaded(seq: u64, result: Result<(), String>) {
 fn open_torrent(seq: u64, item: MediaItem, start: Option<f64>) {
     set_loading(true, "Connecting to peers…");
     spawn_ui(async move {
-        let handle = match crate::services::torrents::open(item.url.clone(), item.title.clone()).await {
+        let handle = match crate::services::torrents::open(item.url.clone(), item.title.clone(), wanted_file(&item)).await {
             Ok(h) => h,
             Err(e) => return fail(seq, &format!("Torrent: {e}")),
         };
@@ -433,8 +433,11 @@ fn open_torrent(seq: u64, item: MediaItem, start: Option<f64>) {
         with(|s| {
             s.torrent = Some(TorrentPlay { url: item.url.clone(), handle: handle.clone(), files: files.clone(), index, widened: false });
         });
+        // select the file first: until then a torrent added without a known file downloads all of it
+        play_torrent_file(seq, index, start);
         if files.len() > 1 {
             let images = file_images(&item, &handle, &files).await;
+            let Some(Some(index)) = with(|s| (s.seq == seq).then(|| s.torrent.as_ref().map_or(index, |t| t.index))) else { return };
             let items: Vec<MediaItem> = files
                 .iter()
                 .zip(images)
@@ -447,8 +450,18 @@ fn open_torrent(seq: u64, item: MediaItem, start: Option<f64>) {
                 .collect();
             set_queue(Queue::Files, items, index, "Files in this torrent");
         }
-        play_torrent_file(seq, index, start);
     });
+}
+
+/// The file to download from the start, if known before the torrent's file list: the one played before, else the one
+/// the search result named.
+fn wanted_file(item: &MediaItem) -> torrent::Wanted {
+    let played = item.torrent_file.as_deref().map(|p| p.rsplit('/').next().unwrap_or(p));
+    match (played.or(item.torrent_file_name.as_deref()), item.torrent_file_index) {
+        (Some(name), _) if !name.is_empty() => torrent::Wanted::Name(name.to_string()),
+        (_, Some(i)) => torrent::Wanted::Index(i),
+        _ => torrent::Wanted::All,
+    }
 }
 
 /// A picture per torrent file for the side panel: the episode's TMDB still for a show (by the file's SxxEyy), else a
@@ -503,10 +516,21 @@ async fn file_images(item: &MediaItem, handle: &torrent::Torrent, files: &[torre
         .collect()
 }
 
-/// The file to play: the one played before, the matching episode of a show, else the largest video.
+/// The file to play: the one played before, the one the search result named, the matching episode of a show, else
+/// the largest video.
 fn pick_file(item: &MediaItem, files: &[torrent::TorrentFile]) -> usize {
     if let Some(path) = &item.torrent_file
         && let Some(i) = files.iter().position(|f| &f.path == path)
+    {
+        return i;
+    }
+    if let Some(name) = &item.torrent_file_name
+        && let Some(i) = files.iter().position(|f| f.name() == name)
+    {
+        return i;
+    }
+    if let Some(index) = item.torrent_file_index
+        && let Some(i) = files.iter().position(|f| f.index == index)
     {
         return i;
     }

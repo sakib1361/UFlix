@@ -50,6 +50,10 @@ pub struct MediaItem {
     pub last_played: Option<DateTime<Utc>>,
     /// The torrent file to play when the url is a magnet (its path inside the torrent).
     pub torrent_file: Option<String>,
+    /// The file to play inside the torrent as the search result named it (before the torrent's file list is known):
+    /// its name, and its index in the torrent.
+    pub torrent_file_name: Option<String>,
+    pub torrent_file_index: Option<usize>,
 }
 
 impl MediaItem {
@@ -126,6 +130,9 @@ pub struct TorrentInfo {
     pub media_type: MediaType,
     pub provider: String,
     pub size: String,
+    /// The file the result is about when the torrent is a pack (Stremio addons: an episode in a season pack).
+    pub file_name: Option<String>,
+    pub file_index: Option<usize>,
 }
 
 impl TorrentInfo {

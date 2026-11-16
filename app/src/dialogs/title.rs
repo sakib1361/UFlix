@@ -86,7 +86,7 @@ pub fn init() {
     });
     t.on_play(|i| {
         if let Some(Some(info)) = with(|s| s.groups.get(s.quality).and_then(|(_, list)| list.get(i as usize).cloned())) {
-            play(info.url.clone(), info.media_type, Some(info.title.clone()));
+            play(info.url.clone(), info.media_type, Some(&info));
         }
     });
     t.on_download(|i| {
@@ -398,10 +398,17 @@ fn show_quality(index: usize) {
     set_torrents(rows, "");
 }
 
-/// Builds the item to play from the dialog's title and the chosen source, closes the dialog and plays it.
-fn play(url: String, kind: MediaType, release: Option<String>) {
+/// Builds the item to play from the dialog's title and the chosen source (a search result, or None for a typed link),
+/// closes the dialog and plays it.
+fn play(url: String, kind: MediaType, source: Option<&TorrentInfo>) {
     let Some(item) = with(|s| {
-        let mut item = MediaItem { url, media_type: kind, ..Default::default() };
+        let mut item = MediaItem {
+            url,
+            media_type: kind,
+            torrent_file_name: source.and_then(|r| r.file_name.clone()),
+            torrent_file_index: source.and_then(|r| r.file_index),
+            ..Default::default()
+        };
         match &s.title {
             Title::Movie(m) => {
                 item.id = m.imdb().unwrap_or_default();
@@ -427,7 +434,6 @@ fn play(url: String, kind: MediaType, release: Option<String>) {
                 item.content_type = ContentType::Shows;
             }
         }
-        let _ = release;
         item
     }) else {
         return;
