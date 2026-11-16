@@ -92,9 +92,14 @@ pub async fn open(url: String, title: String, wanted: Wanted) -> Result<Torrent,
     .await
 }
 
-/// Called when the player leaves a torrent: an unfinished Play torrent is removed (its files stay on disk).
+/// Called when the player leaves a torrent. An unfinished Play torrent is removed (its files stay on disk). A torrent
+/// still narrowed to the played file is widened: a finished one because that file is complete, a Download because
+/// playing it narrowed it.
 pub fn release(url: &str, torrent: &Torrent) {
     if kind_of(url) == Some(TorrentKind::Download) || torrent.is_finished() {
+        if torrent.is_narrowed() {
+            widen(url, torrent);
+        }
         return;
     }
     let (url, t) = (url.to_string(), torrent.clone());
@@ -105,6 +110,18 @@ pub fn release(url: &str, torrent: &Torrent) {
         let mut list = engine::settings::tracked_torrents();
         list.retain(|x| x.url != url);
         engine::settings::set_tracked_torrents(list);
+    });
+}
+
+/// Downloads the rest of a torrent once the played file is complete. It becomes a Download, so closing the player
+/// keeps it and an unfinished one comes back at the next start.
+pub fn widen(url: &str, torrent: &Torrent) {
+    track(url, &torrent.name(), TorrentKind::Download);
+    let t = torrent.clone();
+    handle().spawn(async move {
+        let all: Vec<usize> = t.files().iter().map(|f| f.index).collect();
+        let _ = t.select_files(&all).await;
+        t.resume().await.ok();
     });
 }
 

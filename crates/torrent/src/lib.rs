@@ -48,10 +48,13 @@ pub enum State {
 #[derive(Clone, Debug)]
 pub struct Status {
     pub state: State,
-    /// 0..1
+    /// 0..1, of the selected files (librqbit's view: a torrent narrowed to one file is Finished once that file is).
     pub progress: f64,
     pub total_bytes: u64,
     pub downloaded_bytes: u64,
+    /// The whole torrent, selected or not: its size and the bytes on disk.
+    pub size: u64,
+    pub have_bytes: u64,
     pub uploaded_bytes: u64,
     pub peers: u32,
     pub seeds: u32,
@@ -122,12 +125,17 @@ impl Torrent {
         let mbps = |m: f64| m * 1024.0 * 1024.0;
         let rate = live.map_or(0.0, |l| mbps(l.download_speed.mbps));
         let left = s.total_bytes.saturating_sub(s.progress_bytes);
+        let files = self.files();
+        let size = files.iter().map(|f| f.size).sum();
+        let have_bytes = files.iter().map(|f| s.file_progress.get(f.index).copied().unwrap_or(0)).sum();
         Status {
             eta: (rate > 1.0 && left > 0).then(|| std::time::Duration::from_secs_f64(left as f64 / rate)),
             state,
             progress: if s.total_bytes == 0 { 0.0 } else { s.progress_bytes as f64 / s.total_bytes as f64 },
             total_bytes: s.total_bytes,
             downloaded_bytes: s.progress_bytes,
+            size,
+            have_bytes,
             uploaded_bytes: s.uploaded_bytes,
             peers: live.map_or(0, |l| l.snapshot.peer_stats.live),
             seeds: live.map_or(0, |l| l.snapshot.peer_stats.live_seeders),
@@ -152,6 +160,12 @@ impl Torrent {
 
     pub async fn resume(&self) -> Result<()> {
         self.session.unpause(&self.handle).await.map_err(err)
+    }
+
+    /// Whether only some of the files are selected for download.
+    pub fn is_narrowed(&self) -> bool {
+        let Some(only) = self.handle.only_files() else { return false };
+        self.files().iter().any(|f| !only.contains(&f.index))
     }
 
     /// Downloads only these files (by index); the rest are skipped.

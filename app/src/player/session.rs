@@ -623,39 +623,37 @@ fn start_torrent_stats(seq: u64) {
 }
 
 /// The playing file downloads alone (with its subtitles) so it gets all the bandwidth; once it is complete the rest
-/// of the torrent is selected, so the other episodes download too. Playing another file narrows it again.
+/// of the torrent downloads too (as a Download, so it goes on after the player closes). Playing another file narrows
+/// it again.
 fn widen_when_done() {
-    let Some(Some(handle)) = with(|s| {
+    let Some(Some((url, handle))) = with(|s| {
         let t = s.torrent.as_mut()?;
         let file = &t.files[t.index];
         if t.widened || t.handle.status().file_progress.get(file.index).copied().unwrap_or(0) < file.size {
             return None;
         }
         t.widened = true;
-        Some(t.handle.clone())
+        Some((t.url.clone(), t.handle.clone()))
     }) else {
         return;
     };
-    crate::runtime::handle().spawn(async move {
-        let all: Vec<usize> = handle.files().iter().map(|f| f.index).collect();
-        let _ = handle.select_files(&all).await;
-    });
+    if handle.is_narrowed() {
+        crate::services::torrents::widen(&url, &handle);
+    }
 }
 
-fn torrent_line() -> Option<String> {
+/// The torrent's stats: the swarm, the playing file, and the whole torrent (None for a single file).
+fn torrent_lines() -> Option<(String, String, Option<String>)> {
     with(|s| {
         let t = s.torrent.as_ref()?;
         let st = t.handle.status();
         let file = &t.files[t.index];
         let done = st.file_progress.get(file.index).copied().unwrap_or(0);
-        Some(format!(
-            "{} peers · ↓ {}/s · ↑ {}/s · {} of {}",
-            st.peers,
-            torrent::readable_size(st.download_rate as u64),
-            torrent::readable_size(st.upload_rate as u64),
-            torrent::readable_size(done),
-            torrent::readable_size(file.size)
-        ))
+        let size = torrent::readable_size;
+        let swarm = format!("{} peers · ↓ {}/s · ↑ {}/s", st.peers, size(st.download_rate as u64), size(st.upload_rate as u64));
+        let file = format!("{} of {}", size(done), size(file.size));
+        let all = (t.files.len() > 1).then(|| format!("{} of {}", size(st.have_bytes), size(st.size)));
+        Some((swarm, file, all))
     })
     .flatten()
 }
@@ -1114,11 +1112,11 @@ pub fn toggle_info() {
 }
 
 fn refresh_stats() {
-    let torrent = torrent_line();
+    let torrent = torrent_lines();
     if ps(|p| p.get_loading())
-        && let Some(line) = &torrent
+        && let Some((swarm, file, _)) = &torrent
     {
-        ps(|p| p.set_torrent_stats(line.clone().into()));
+        ps(|p| p.set_torrent_stats(format!("{swarm}\n{file}").into()));
     }
     if !ps(|p| p.get_info_open()) {
         return;
@@ -1137,8 +1135,12 @@ fn refresh_stats() {
         ("Audio", format!("{} · {} ch · {} Hz", g("audio-codec-name"), g("audio-params/channel-count"), g("audio-params/samplerate"))),
         ("Cache", format!("{:.0} s ahead", m.get_double("demuxer-cache-duration").unwrap_or(0.0))),
     ];
-    if let Some(line) = torrent {
-        stats.push(("Torrent", line));
+    if let Some((swarm, file, all)) = torrent {
+        stats.push(("Torrent", swarm));
+        stats.push(("File", file));
+        if let Some(all) = all {
+            stats.push(("All files", all));
+        }
     }
     let model: Vec<Stat> = stats.into_iter().map(|(l, v)| Stat { label: SharedString::from(l), value: v.into() }).collect();
     ps(|p| p.set_stats(ModelRc::from(Rc::new(VecModel::from(model)))));

@@ -113,9 +113,11 @@ fn refresh() {
                 let title = rec.as_ref().map(|r| r.title.clone()).filter(|x| !x.is_empty()).unwrap_or_else(|| t.name());
                 let finished = s.state == torrent::State::Finished;
                 let paused = s.state == torrent::State::Paused;
+                // the whole torrent: one narrowed to the played file is not shown as done once that file is
+                let progress = if s.size == 0 { s.progress } else { s.have_bytes as f64 / s.size as f64 };
                 let mut meta = vec![
-                    format!("{:.0}%", s.progress * 100.0),
-                    format!("{} of {}", torrent::readable_size(s.downloaded_bytes), torrent::readable_size(s.total_bytes)),
+                    format!("{:.0}%", progress * 100.0),
+                    format!("{} of {}", torrent::readable_size(s.have_bytes), torrent::readable_size(s.size)),
                 ];
                 if !finished && !paused {
                     meta.push(format!("{}/s", torrent::readable_size(s.download_rate as u64)));
@@ -132,9 +134,9 @@ fn refresh() {
                     meta.push(e.clone());
                 }
                 if let Some(r) = rec {
-                    crate::services::torrents::record_progress(&r.url, s.progress * 100.0);
+                    crate::services::torrents::record_progress(&r.url, progress * 100.0);
                 }
-                DownloadRow { title: title.into(), meta: meta.join("  ·  ").into(), progress: s.progress as f32, paused, finished }
+                DownloadRow { title: title.into(), meta: meta.join("  ·  ").into(), progress: progress as f32, paused, finished }
             })
             .collect();
         STATE.with(|s| s.borrow_mut().rows = list);
