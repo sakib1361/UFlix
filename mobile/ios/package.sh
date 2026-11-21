@@ -21,6 +21,11 @@ grep -v '^#' "$here/mpvkit.lock" | while read -r sum url; do
     unzip -oq "$zip" -d "$libs" # <Name>.xcframework/; build.rs picks its ios-arm64 slice
 done
 
+# toolchain facts for the CI log (OpenGLES: libmpv's GL interop references EAGLContext, see eagl_stub.m)
+xcodebuild -version | head -1
+sdk="$(xcrun --sdk iphoneos --show-sdk-path)"; echo "iOS SDK: $sdk"
+grep -c EAGLContext "$sdk/System/Library/Frameworks/OpenGLES.framework/OpenGLES.tbd" 2>/dev/null || echo "OpenGLES.tbd: no EAGLContext"
+
 # 2. the app binary (the Slint UI uses Skia on Metal; skia-bindings fetches its prebuilt iOS library)
 rustup target add aarch64-apple-ios >/dev/null
 export IPHONEOS_DEPLOYMENT_TARGET=15.0

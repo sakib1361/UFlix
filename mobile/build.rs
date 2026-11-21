@@ -21,6 +21,8 @@ fn main() {
 }
 
 fn link_ios() {
+    println!("cargo:rerun-if-changed=ios/eagl_stub.m");
+    cc::Build::new().file("ios/eagl_stub.m").compile("eagl_stub");
     let root = PathBuf::from(std::env::var("UFLIX_IOS_LIBS").expect("UFLIX_IOS_LIBS: folder of MPVKit xcframeworks"));
     let mut entries: Vec<_> = std::fs::read_dir(&root).expect("UFLIX_IOS_LIBS").flatten().map(|e| e.path()).collect();
     entries.sort();
@@ -44,8 +46,7 @@ fn link_ios() {
             }
         }
     }
-    // What MPVKit's Package.swift links, plus what MoltenVK, libass (CoreText), the TLS stack and libmpv's iOS GL
-    // hwdec interop (OpenGLES: EAGLContext) need.
+    // What MPVKit's Package.swift links, plus what MoltenVK, libass (CoreText), and the TLS stack need.
     for fw in [
         "AVFoundation",
         "AudioToolbox",
