@@ -17,6 +17,7 @@ crates/engine/       UI-free core (async on tokio): models, SQLite store, settin
 crates/mpv/          libmpv binding, loaded at runtime from the bundled copy: Player, RenderContext (OpenGL), stream_cb
 crates/torrent/      torrent engine on librqbit (pure Rust): Engine, Torrent, BlockingStream for the player
 Native/mpv/          build/fetch scripts for the bundled libmpv;  packaging/  AppImage + Inno Setup
+mobile/              the phone app (own Cargo project, not in the workspace): one Slint UI for iOS now, Android later
 ```
 
 Layering: `app` → `engine`, `mpv`, `torrent`. The three crates know nothing about Slint or each other.
@@ -165,6 +166,26 @@ the next start. The session listens for incoming peers (TCP, UPnP) and starts on
 - **Data folders** are unchanged from the C# app (`~/.local/share/UFlix`, `Documents\UFlix`, `~/Downloads/UFlix`).
 - **Licence:** GPL-3.0-or-later; every dependency must stay GPLv3-compatible (Slint is used under GPLv3).
 
+### Mobile (`mobile/`)
+
+A basic player for phones, one UI for iOS and (later) Android: `ui/player.slint` (full-screen video, overlay controls
+that hide after 3 s while playing, `safe-area-insets` for the notch), `src/lib.rs` (`run()`, shared; Android will call
+it from an `android_main` cdylib), `src/mpv.rs` (direct libmpv FFI). It streams Big Buck Bunny (Mux HLS test stream;
+`UFLIX_MEDIA` overrides).
+
+- **Video:** Slint on iOS has only Skia on Metal (no OpenGL), so the desktop's GL render path does not apply. mpv's
+  **software render API** draws RGB frames (sized to the video area, at most the video's own size and 1920 wide) on
+  its own thread and the UI shows them as an `Image`; decoding still uses hardware (`hwdec=auto-copy`, VideoToolbox).
+  CPU-heavy; the zero-copy option is mpv on its own `CAMetalLayer` (MoltenVK) under the Slint layer.
+- **libmpv on iOS:** MPVKit's GPL static xcframeworks, pinned with checksums in `ios/mpvkit.lock`; `build.rs` links
+  each one's `ios-arm64` slice. On Linux the crate links the bundled `runtimes/linux-x64/native/libmpv.so.2`, so
+  `cargo run` in `mobile/` is a quick desktop check of the same code.
+- **iOS build:** `mobile/ios/package.sh` on macOS, or the **Mobile** workflow (manual; free macOS runner, public repo),
+  produces an unsigned `out/ios/UFlix-mobile.ipa`: the Rust binary + `Info.plist` (Slint's `SlintWindowSceneDelegate`
+  scene manifest, background audio). No Xcode project.
+- **Install without a Mac:** sign with a free Apple ID through Impactor (Linux, Flathub) or xtool, or SideStore on the
+  phone, which also renews it. Free-ID limits: 7 days, 3 apps.
+
 ---
 
 ## 5. Open work
@@ -172,6 +193,8 @@ the next start. The session listens for incoming peers (TCP, UPnP) and starts on
 - Windows: build and run the app and installer on a Windows machine (only CI-compiled so far); check d3d11 interop.
 - Natives: run the Natives workflow once to publish a set with the nvdec/VA-API libmpv in the new `runtimes/` layout
   (the pinned `natives-2` set still has the C# folder layout).
+- Mobile: first Mobile workflow run (link errors from MPVKit's static libs are likely: add the missing system
+  frameworks/libs in `mobile/build.rs`), then test on an iPhone; Android (cdylib + `android_main`, Android libmpv).
 - uTP for torrents once librqbit marks it stable.
 - A memory probe like the C# `UFLIX_MEMPROBE` (page cycling + RSS log); `UFLIX_MEMLOG` covers the logging half.
 - Stop making blocking libmpv calls on the UI (render) thread: async commands/properties and observed values instead.

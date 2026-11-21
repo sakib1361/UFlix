@@ -1,0 +1,34 @@
+# UFlix mobile (iOS now, Android later): one Slint UI + libmpv player. Not part of the workspace; iOS is built by
+# mobile/ios/package.sh (on macOS, or the "Mobile" workflow). On Linux it builds against the bundled libmpv for a quick check.
+[package]
+name = "uflix-mobile"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+publish = false
+
+[workspace]
+
+[lib]
+name = "uflix_mobile"
+path = "src/lib.rs"
+
+# iOS (and the desktop check) run this binary; Android will add a cdylib whose `android_main` calls `run()`.
+[[bin]]
+name = "uflix-mobile"
+path = "src/main.rs"
+
+# Skia (Metal) is the only Slint renderer on iOS; on the desktop the femtovg renderer keeps the local check light.
+[target.'cfg(target_os = "ios")'.dependencies]
+slint = { version = "1.18", default-features = false, features = ["std", "compat-1-2", "backend-winit", "renderer-skia"] }
+
+[target.'cfg(not(target_os = "ios"))'.dependencies]
+slint = { version = "1.18", default-features = false, features = ["std", "compat-1-2", "backend-winit", "renderer-femtovg"] }
+
+[build-dependencies]
+slint-build = "1.18"
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true

@@ -1,0 +1,206 @@
+// UFlix mobile: one UI for phones (iOS now, Android later). A full-screen player with translucent overlay controls
+// that hide while playing; tap the video to show or hide them. Colours follow the desktop theme (app/ui/theme.slint).
+
+global Theme {
+    out property <color> bg: #111113;
+    out property <color> surface: #1a1a1d;
+    out property <color> accent: #d32f2f;
+    out property <color> text: #f2f2f4;
+    out property <color> text-dim: #a0a0a8;
+    out property <color> scrim: #000000a0;
+}
+
+component IconButton inherits Rectangle {
+    in property <image> icon;
+    in property <length> size: 48px;
+    callback clicked();
+    width: self.size;
+    height: self.size;
+    border-radius: self.width / 2;
+    background: ta.pressed ? #ffffff30 : #ffffff14;
+    Image {
+        source: root.icon;
+        width: root.size * 0.55;
+        height: self.width;
+        colorize: Theme.text;
+    }
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// Seek bar sized for fingers: the whole 32px strip is touchable, the drawn track is thin.
+component SeekBar inherits Rectangle {
+    in property <float> progress; // 0..1
+    out property <bool> scrubbing: ta.pressed;
+    out property <float> scrub: clamp(ta.mouse-x / self.width, 0, 1);
+    callback seek(float);
+    height: 32px;
+    property <float> shown: self.scrubbing ? self.scrub : clamp(self.progress, 0, 1);
+    Rectangle {
+        y: (parent.height - self.height) / 2;
+        height: root.scrubbing ? 6px : 4px;
+        border-radius: self.height / 2;
+        background: #ffffff40;
+        Rectangle {
+            x: 0;
+            width: parent.width * root.shown;
+            border-radius: parent.border-radius;
+            background: Theme.accent;
+        }
+    }
+    Rectangle {
+        x: root.width * root.shown - self.width / 2;
+        y: (parent.height - self.height) / 2;
+        width: root.scrubbing ? 18px : 14px;
+        height: self.width;
+        border-radius: self.width / 2;
+        background: Theme.accent;
+    }
+    ta := TouchArea {
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.up) {
+                root.seek(clamp(self.mouse-x / root.width, 0, 1));
+            }
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "UFlix";
+    background: Theme.bg;
+    preferred-width: 390px;
+    preferred-height: 844px;
+
+    in property <image> frame;
+    in property <string> media-title: "Big Buck Bunny";
+    in property <float> position; // seconds
+    in property <float> duration;
+    in property <bool> paused;
+    in property <bool> buffering: true;
+    in property <string> message; // error text, empty when fine
+    in property <string> position-text: "0:00";
+    in property <string> duration-text: "0:00";
+
+    callback toggle-pause();
+    callback seek(float); // seconds, absolute
+    callback skip(float); // seconds, relative
+    // physical pixel size of the video area, so frames are rendered at the size they are shown
+    out property <length> video-width: video.width;
+    out property <length> video-height: video.height;
+
+    property <bool> controls-shown: true;
+    property <bool> keep-controls: root.paused || root.buffering || seek.scrubbing || root.message != "";
+
+    video := Rectangle {
+        background: black;
+        Image {
+            width: 100%;
+            height: 100%;
+            source: root.frame;
+            image-fit: contain;
+        }
+        TouchArea {
+            clicked => {
+                root.controls-shown = !root.controls-shown;
+                hide.running = false;
+                hide.running = root.controls-shown;
+            }
+        }
+    }
+
+    hide := Timer {
+        interval: 3s;
+        running: root.controls-shown && !root.keep-controls;
+        triggered => { root.controls-shown = false; }
+    }
+
+    if root.buffering && root.message == "": Text {
+        text: "Loading…";
+        color: Theme.text-dim;
+        font-size: 15px;
+    }
+
+    if root.message != "": Rectangle {
+        width: min(parent.width - 48px, 340px);
+        height: msg.preferred-height + 32px;
+        border-radius: 12px;
+        background: Theme.surface;
+        msg := Text {
+            width: parent.width - 32px;
+            text: root.message;
+            color: Theme.text;
+            wrap: word-wrap;
+            horizontal-alignment: center;
+        }
+    }
+
+    // top bar: title (below the notch / status bar)
+    Rectangle {
+        y: 0;
+        height: root.safe-area-insets.top + 56px;
+        opacity: root.controls-shown || root.keep-controls ? 1 : 0;
+        animate opacity { duration: 200ms; }
+        background: @linear-gradient(180deg, #000000b0 0%, #00000000 100%);
+        Text {
+            x: root.safe-area-insets.left + 20px;
+            y: root.safe-area-insets.top + 14px;
+            text: root.media-title;
+            color: Theme.text;
+            font-size: 18px;
+            font-weight: 600;
+        }
+    }
+
+    // bottom controls: seek bar, times, -10s / play-pause / +10s (above the home indicator)
+    Rectangle {
+        y: parent.height - self.height;
+        height: root.safe-area-insets.bottom + 140px;
+        opacity: root.controls-shown || root.keep-controls ? 1 : 0;
+        animate opacity { duration: 200ms; }
+        visible: self.opacity > 0;
+        background: @linear-gradient(0deg, #000000c8 0%, #00000000 100%);
+        VerticalLayout {
+            padding-left: root.safe-area-insets.left + 20px;
+            padding-right: root.safe-area-insets.right + 20px;
+            padding-bottom: root.safe-area-insets.bottom + 12px;
+            padding-top: 12px;
+            spacing: 4px;
+            seek := SeekBar {
+                progress: root.duration > 0 ? root.position / root.duration : 0;
+                seek(f) => { root.seek(f * root.duration); }
+            }
+            HorizontalLayout {
+                Text {
+                    text: seek.scrubbing ? "…" : root.position-text;
+                    color: Theme.text-dim;
+                    font-size: 13px;
+                }
+                Rectangle { }
+                Text {
+                    text: root.duration-text;
+                    color: Theme.text-dim;
+                    font-size: 13px;
+                }
+            }
+            HorizontalLayout {
+                alignment: center;
+                spacing: 28px;
+                IconButton {
+                    icon: @image-url("icons/replay.svg");
+                    clicked => { root.skip(-10); }
+                }
+                IconButton {
+                    size: 64px;
+                    icon: root.paused ? @image-url("icons/play.svg") : @image-url("icons/pause.svg");
+                    background: Theme.accent;
+                    clicked => { root.toggle-pause(); }
+                }
+                IconButton {
+                    icon: @image-url("icons/forward.svg");
+                    clicked => { root.skip(10); }
+                }
+            }
+        }
+    }
+}

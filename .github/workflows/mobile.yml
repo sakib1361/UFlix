@@ -1,0 +1,47 @@
+name: Mobile
+
+# The mobile app (mobile/): run by hand, or by pushing the "mobile" test branch. iOS builds an unsigned .ipa on a
+# macOS runner (free for public repos); sign + install it with a free Apple ID (Impactor, SideStore or xtool), valid
+# 7 days. Android: to do.
+on:
+  workflow_dispatch:
+  push:
+    branches: [mobile]
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mobile
+
+      - uses: actions/cache@v4
+        with:
+          path: out/ios/zips
+          key: mpvkit-${{ hashFiles('mobile/ios/mpvkit.lock') }}
+
+      - name: Package (.ipa)
+        run: |
+          export VERSION="$(tr -d '[:space:]' < VERSION)"
+          export BUILD="$GITHUB_RUN_NUMBER"
+          mobile/ios/package.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: uflix-ios
+          path: out/ios/UFlix-mobile.ipa
+          if-no-files-found: error
