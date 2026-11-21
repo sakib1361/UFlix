@@ -21,8 +21,8 @@ fn main() {
 }
 
 fn link_ios() {
-    println!("cargo:rerun-if-changed=ios/eagl_stub.m");
-    cc::Build::new().file("ios/eagl_stub.m").compile("eagl_stub");
+    println!("cargo:rerun-if-changed=ios/stubs.m");
+    cc::Build::new().file("ios/stubs.m").compile("ios_stubs");
     let root = PathBuf::from(std::env::var("UFLIX_IOS_LIBS").expect("UFLIX_IOS_LIBS: folder of MPVKit xcframeworks"));
     let mut entries: Vec<_> = std::fs::read_dir(&root).expect("UFLIX_IOS_LIBS").flatten().map(|e| e.path()).collect();
     entries.sort();

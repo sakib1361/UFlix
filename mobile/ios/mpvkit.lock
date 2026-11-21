@@ -1,5 +1,5 @@
 # MPVKit 1.1.0-n9.0.2 (GPL build of libmpv + FFmpeg and their deps), static xcframeworks for iOS: "<sha256> <url>".
-# Taken from MPVKit's Package.swift (product MPVKit-GPL); bump all lines together.
+# Taken from MPVKit's Package.swift (product MPVKit-GPL) minus Libdovi (stubbed in stubs.m); bump all lines together.
 a556746596c0c6fe88b1ef6182e6ddc25504617eba2d9ac538159098ceca3fb5 https://github.com/mpvkit/MPVKit/releases/download/1.1.0-n9.0.2/Libmpv-GPL.xcframework.zip
 51863fa4b96dccc350fe4e3b125b7b71cd3728039baa3af87c7ea8b24f2bf61d https://github.com/mpvkit/MPVKit/releases/download/1.1.0-n9.0.2/Libavcodec-GPL.xcframework.zip
 9cf58860173bc4f18551c4311753451f6f7f9b43bf0c1f88baf90ffd71b006f5 https://github.com/mpvkit/MPVKit/releases/download/1.1.0-n9.0.2/Libavdevice-GPL.xcframework.zip
@@ -22,7 +22,6 @@ aa8e0b9ca0387dac74e3e93c86e34d11982bb013b28022d0e6966a8427a35b2e https://github.
 3a53375fab11bc888cc553664ea5dd902208d04f0cc21ec746302bf356246b6f https://github.com/mpvkit/libsmbclient-build/releases/download/4.15.13-2512/Libsmbclient.xcframework.zip
 bc037d34e2b0b5ab7f202fb371f5fb298136cc66fdf406c2172185d06f53f18d https://github.com/mpvkit/libbluray-build/releases/download/1.4.0/Libbluray.xcframework.zip
 bd5256081486d16c51c868d755bf70266c424b54c895269580de44ec6707f789 https://github.com/mpvkit/libuavs3d-build/releases/download/1.2.1-fix/Libuavs3d.xcframework.zip
-e693e239808350868e79c5448ef9f02e2716bc822dd8632a41a368a1eae5ca7d https://github.com/mpvkit/libdovi-build/releases/download/3.3.2/Libdovi.xcframework.zip
 aee189c54ad7c62bf734a3dc51eb4cfad5685d1d63b0ec519ecd1b437c332418 https://github.com/mpvkit/moltenvk-build/releases/download/1.4.2/MoltenVK.xcframework.zip
 758047b615708575b580eb960a2d083f760a29dc462d6eaa360416c946ce433b https://github.com/mpvkit/libshaderc-build/releases/download/2025.5.0/Libshaderc_combined.xcframework.zip
 dc0dce0606f6ab6841a8ec5a6bd4448e2f3ef00661a050460f806c9393dc6982 https://github.com/mpvkit/lcms2-build/releases/download/2.17.0/lcms2.xcframework.zip

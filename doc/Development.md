@@ -178,7 +178,9 @@ it from an `android_main` cdylib), `src/mpv.rs` (direct libmpv FFI). It streams 
   its own thread and the UI shows them as an `Image`; decoding still uses hardware (`hwdec=auto-copy`, VideoToolbox).
   CPU-heavy; the zero-copy option is mpv on its own `CAMetalLayer` (MoltenVK) under the Slint layer.
 - **libmpv on iOS:** MPVKit's GPL static xcframeworks, pinned with checksums in `ios/mpvkit.lock`; `build.rs` links
-  each one's `ios-arm64` slice. On Linux the crate links the bundled `runtimes/linux-x64/native/libmpv.so.2`, so
+  each one's `ios-arm64` slice. `ios/stubs.m` stands in for two unused dependencies: `EAGLContext` (mpv's GL ES
+  interop; the current SDK's OpenGLES no longer resolves it) and libdovi (a Rust staticlib whose own copy of std clashes
+  with the app's; only gpu-next's Dolby Vision path calls it). On Linux the crate links the bundled `runtimes/linux-x64/native/libmpv.so.2`, so
   `cargo run` in `mobile/` is a quick desktop check of the same code.
 - **iOS build:** `mobile/ios/package.sh` on macOS, or the **Mobile** workflow (manual; free macOS runner, public repo),
   produces an unsigned `out/ios/UFlix-mobile.ipa`: the Rust binary + `Info.plist` (Slint's `SlintWindowSceneDelegate`

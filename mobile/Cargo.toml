@@ -27,7 +27,7 @@ slint = { version = "1.18", default-features = false, features = ["std", "compat
 
 [build-dependencies]
 slint-build = "1.18"
-cc = "1" # iOS: ios/eagl_stub.m
+cc = "1" # iOS: ios/stubs.m
 
 [profile.release]
 lto = "thin"

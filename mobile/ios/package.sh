@@ -21,8 +21,8 @@ grep -v '^#' "$here/mpvkit.lock" | while read -r sum url; do
     unzip -oq "$zip" -d "$libs" # <Name>.xcframework/; build.rs picks its ios-arm64 slice
 done
 
-# toolchain facts for the CI log (OpenGLES: libmpv's GL interop references EAGLContext, see eagl_stub.m)
-xcodebuild -version | head -1
+# toolchain facts for the CI log (OpenGLES: libmpv's GL interop references EAGLContext, see stubs.m)
+xcodebuild -version # whole output: piping it into head aborts xcodebuild on the closed pipe
 sdk="$(xcrun --sdk iphoneos --show-sdk-path)"; echo "iOS SDK: $sdk"
 grep -c EAGLContext "$sdk/System/Library/Frameworks/OpenGLES.framework/OpenGLES.tbd" 2>/dev/null || echo "OpenGLES.tbd: no EAGLContext"
 
