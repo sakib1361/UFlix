@@ -44,7 +44,8 @@ fn link_ios() {
             }
         }
     }
-    // What MPVKit's Package.swift links, plus what MoltenVK, libass (CoreText) and the TLS stack need.
+    // What MPVKit's Package.swift links, plus what MoltenVK, libass (CoreText), the TLS stack and libmpv's iOS GL
+    // hwdec interop (OpenGLES: EAGLContext) need.
     for fw in [
         "AVFoundation",
         "AudioToolbox",
